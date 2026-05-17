@@ -6,3 +6,6 @@ openpyxl
 python-dotenv
 langchain-openai
 langgraph
+chromadb
+pydantic
+tqdm
