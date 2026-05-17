@@ -1,0 +1,21 @@
+Question ID,Category,Question Text,Purpose,Suggested Follow-up,Evaluation Focus
+GQ-001,Introduction,Tell me about yourself and your professional background.,Understand candidate background and communication style.,Which part of your experience is most relevant to this role?,"Clarity, relevance, confidence, career alignment"
+GQ-002,Motivation,Why are you interested in this role?,Assess motivation and role understanding.,What specifically attracted you to this position?,"Motivation, role awareness, fit"
+GQ-003,Role Understanding,What do you understand about the responsibilities of this role?,Check whether candidate understands the job.,Which responsibility do you think is most important and why?,"Role understanding, prioritization"
+GQ-004,Experience,Describe a project or task you worked on that is relevant to this role.,Assess practical experience.,What was your exact contribution?,"Relevance, ownership, impact"
+GQ-005,Problem Solving,Tell me about a difficult problem you solved at work or during a project.,Evaluate problem-solving ability.,What alternatives did you consider?,"Logic, structure, decision-making"
+GQ-006,Technical / Functional Knowledge,What are the most important skills required to succeed in this role?,Assess understanding of required skills.,Which of these skills is your strongest?,"Skills awareness, self-assessment"
+GQ-007,Tools,"What tools, platforms, or software have you used that are relevant to this role?",Identify hands-on tool experience.,Can you give an example of how you used one of them?,Practical tool knowledge
+GQ-008,Communication,Explain a complex topic from your field to someone without technical knowledge.,Test communication clarity.,How would you adjust your explanation for senior management?,"Simplicity, clarity, audience awareness"
+GQ-009,Teamwork,Describe a time you worked with a team to complete a task or project.,Evaluate collaboration.,What challenges did the team face?,"Teamwork, communication, responsibility"
+GQ-010,Conflict Handling,Tell me about a time you disagreed with a colleague or stakeholder. How did you handle it?,Assess conflict resolution.,What would you do differently next time?,"Professionalism, emotional intelligence"
+GQ-011,Time Management,How do you prioritize tasks when you have multiple deadlines?,Assess organization and prioritization.,Can you give an example?,"Planning, prioritization, reliability"
+GQ-012,Learning Ability,Tell me about a time you had to learn something new quickly.,Evaluate adaptability.,How did you measure your progress?,"Learning mindset, initiative"
+GQ-013,Failure / Mistake,Describe a mistake you made and what you learned from it.,Assess honesty and growth mindset.,How did you prevent it from happening again?,"Accountability, reflection"
+GQ-014,Decision Making,Describe a time you had to make a decision with limited information.,Evaluate judgment under uncertainty.,What risks did you consider?,"Judgment, risk awareness"
+GQ-015,Work Quality,How do you make sure your work is accurate and high quality?,Assess attention to detail.,Can you give an example where quality control mattered?,"Accuracy, process discipline"
+GQ-016,Stakeholder Management,Tell me about a time you had to communicate with stakeholders or clients.,Assess business communication.,How did you handle different expectations?,Stakeholder awareness
+GQ-017,Pressure,Describe a time you worked under pressure.,Evaluate stress handling.,What helped you stay focused?,"Resilience, prioritization"
+GQ-018,Initiative,Give an example of a time you improved a process or suggested a better way to do something.,Assess proactivity.,What was the impact of your suggestion?,"Initiative, impact"
+GQ-019,Ethics,"What would you do if you noticed an error, risk, or issue that others ignored?",Assess integrity and judgment.,Who would you inform and why?,"Ethics, responsibility"
+GQ-020,Final Fit,Why do you think you are a good fit for this role?,Let candidate summarize fit.,What is one area you still need to improve?,"Self-awareness, role alignment"
