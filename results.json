@@ -1,0 +1,106 @@
+[
+  {
+    "candidate_id": "CV-001",
+    "candidate_name": "Ibrahim Alharbi",
+    "predicted_role_fit": "Project Manager",
+    "overall_fit_score": 77.3,
+    "confidence_score": 0.9,
+    "recommendation": "Recommend",
+    "risk_flags": [],
+    "strongest_signals": [
+      "Built integrated project plans, RAID logs, and executive status reports for cross-functional delivery work; cut manual follow-up effort by 20%.",
+      "Coordinated scope, timeline, and budget discussions with product, technology, finance, and operations stakeholders.",
+      "Resolved delivery risks by escalating dependencies early and documenting mitigation actions."
+    ],
+    "weakest_signals": [
+      "No interview conducted, limiting assessment of real-time problem-solving and interpersonal dynamics.",
+      "Limited evidence of direct technical implementation experience, though technical fluency is rated at 7.5.",
+      "Strategic thinking score (7.0) is slightly lower compared to other dimensions, with no specific evidence of long-term vision or roadmap ownership."
+    ],
+    "dimension_scores": {
+      "delivery_ownership": 8.5,
+      "leadership_signals": 7.5,
+      "business_impact": 7.0,
+      "stakeholder_management": 8.0,
+      "evidence_credibility": 7.5,
+      "pm_readiness": 8.0,
+      "strategic_thinking": 7.0,
+      "communication_clarity": 8.0,
+      "technical_fluency": 7.5,
+      "authenticity_confidence": 9.0
+    },
+    "behavioral_summary": "Ibrahim demonstrates strong delivery ownership, stakeholder management, and communication clarity. His ability to escalate risks early and coordinate across multiple functions is evident. However, his strategic thinking and technical implementation experience are less emphasized in the evidence provided.",
+    "trajectory_analysis": "With nine years of experience, Ibrahim has shown consistent growth in managing complex projects and collaborating across diverse teams. His ability to deliver measurable business impact, such as reducing manual effort and improving response times, indicates a results-oriented approach. While his strategic thinking could be further developed, his overall trajectory suggests readiness for a Project Manager role.",
+    "explanation": "Ibrahim Alharbi is a strong candidate for the Project Manager role, with an overall fit score of 77.3 and no risk flags. His track record of delivery ownership, stakeholder management, and leadership signals aligns well with the role's requirements. While the lack of an interview limits the assessment of his interpersonal dynamics, his documented achievements and high scores across key dimensions provide confidence in his readiness to succeed in this position."
+  },
+  {
+    "candidate_id": "CV-002",
+    "candidate_name": "Dina Alghamdi",
+    "predicted_role_fit": "Project Manager",
+    "overall_fit_score": 75.9,
+    "confidence_score": 0.85,
+    "recommendation": "Recommend",
+    "risk_flags": [],
+    "strongest_signals": [
+      "Resolved delivery risks by escalating dependencies early and documenting mitigation actions.",
+      "Built integrated project plans, RAID logs, and executive status reports for cross-functional delivery work.",
+      "Prepared timeline, risk log, stakeholder update deck, and delivery checklist using MS Project, Asana."
+    ],
+    "weakest_signals": [
+      "Limited evidence of direct strategic decision-making beyond tactical execution.",
+      "Business impact examples provided are relatively modest (e.g., 20% manual effort reduction).",
+      "No interview conducted, limiting ability to assess real-time communication and problem-solving skills."
+    ],
+    "dimension_scores": {
+      "delivery_ownership": 8.5,
+      "leadership_signals": 7.5,
+      "business_impact": 6.5,
+      "stakeholder_management": 8.0,
+      "evidence_credibility": 7.5,
+      "pm_readiness": 7.5,
+      "strategic_thinking": 7.0,
+      "communication_clarity": 8.0,
+      "technical_fluency": 7.0,
+      "authenticity_confidence": 9.0
+    },
+    "behavioral_summary": "Dina demonstrates strong delivery ownership and stakeholder management skills, with a proven ability to manage risks, create structured project plans, and communicate effectively with stakeholders. Her leadership signals are solid, and she has shown the ability to support decisions involving significant budgets. However, her strategic thinking and business impact examples are less pronounced, focusing more on operational improvements than high-level strategy.",
+    "trajectory_analysis": "Dina's career trajectory shows steady growth over six years, with increasing responsibility in project delivery and stakeholder engagement. Her experience with cross-functional teams and tools like MS Project and Asana indicates readiness for a formal Project Manager role. However, her lack of interview performance data leaves some uncertainty about her ability to handle dynamic, real-time challenges.",
+    "explanation": "Dina Alghamdi is a strong candidate for the Project Manager role, with an overall fit score of 75.9 and no significant risk flags. Her documented experience in delivery ownership and stakeholder management, as well as her ability to mitigate risks and manage cross-functional projects, aligns well with the role's requirements. While her strategic thinking and business impact examples could be more robust, her high scores in communication clarity and authenticity suggest she is well-prepared to grow into the role. The lack of an interview limits the assessment of her real-time problem-solving skills, but her resume provides sufficient evidence to recommend her for the position."
+  },
+  {
+    "candidate_id": "CV-003",
+    "candidate_name": "Mariam Alotaibi",
+    "predicted_role_fit": "Project Manager",
+    "overall_fit_score": 77.3,
+    "confidence_score": 0.75,
+    "recommendation": "Recommend",
+    "risk_flags": [
+      "vague_impact"
+    ],
+    "strongest_signals": [
+      "Coordinated scope, timeline, and budget discussions with product, technology, finance, and operations stakeholders; supported decisions for a SAR 2M budget.",
+      "Built integrated project plans, RAID logs, and executive status reports for cross-functional delivery work.",
+      "Improved sprint and milestone visibility by standardizing reporting in Jira, MS Project, and PowerPoint."
+    ],
+    "weakest_signals": [
+      "Limited evidence of direct leadership in driving strategic initiatives beyond tactical execution.",
+      "Impact metrics provided (e.g., 'Improved stakeholder response time by 30%') lack detailed context or substantiation.",
+      "No interview conducted, leaving gaps in assessing real-time communication and problem-solving skills."
+    ],
+    "dimension_scores": {
+      "delivery_ownership": 8.5,
+      "leadership_signals": 7.5,
+      "business_impact": 7.0,
+      "stakeholder_management": 8.0,
+      "evidence_credibility": 7.5,
+      "pm_readiness": 8.0,
+      "strategic_thinking": 7.0,
+      "communication_clarity": 8.0,
+      "technical_fluency": 7.5,
+      "authenticity_confidence": 9.0
+    },
+    "behavioral_summary": "Mariam demonstrates strong delivery ownership and stakeholder management skills, with a proven ability to coordinate across cross-functional teams and manage complex projects. Her communication is clear and structured, and she exhibits confidence in her abilities.",
+    "trajectory_analysis": "Mariam has a solid foundation in project management with 8 years of experience and a track record of improving processes and delivering results. However, there is limited evidence of her involvement in high-level strategic decision-making or leadership of transformative initiatives.",
+    "explanation": "Mariam Alotaibi is a strong candidate for the Project Manager role, with an overall fit score of 77.3. Her strengths in delivery ownership, stakeholder management, and process standardization are well-documented, and her confidence and clarity in communication are evident. However, the lack of an interview and some vague impact metrics slightly reduce confidence in her ability to deliver at a strategic level. Despite these concerns, her experience and skills align well with the role's requirements, making her a recommendable candidate."
+  }
+]
