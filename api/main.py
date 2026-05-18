@@ -13,10 +13,13 @@ Endpoints:
 from __future__ import annotations
 
 import uuid
+from pathlib import Path
 from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from fastapi.responses import FileResponse
 
 import agent
 from api import schemas
@@ -32,13 +35,25 @@ app = FastAPI(
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "http://localhost:5173",   # Vite default
+        "http://localhost:5173",   # Vite dev server
         "http://127.0.0.1:5173",
+        "http://localhost:8000",   # production — same origin
     ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── Serve built React frontend (production only) ───────────────────────────────
+_STATIC = Path(__file__).parent.parent / "static"
+if _STATIC.exists():
+    app.mount("/assets", StaticFiles(directory=_STATIC / "assets"), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def serve_spa(full_path: str) -> FileResponse:
+        """Catch-all: serve index.html for all non-API routes (SPA routing)."""
+        index = _STATIC / "index.html"
+        return FileResponse(index)
 
 
 # ── Health ─────────────────────────────────────────────────────────────────────
