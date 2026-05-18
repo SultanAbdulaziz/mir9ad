@@ -46,12 +46,13 @@ def _get_gemini() -> Any:
         return None
 
 # ── Data ───────────────────────────────────────────────────────────────────────
+# _cv_db is used ONLY to train the linear-regression fit-score formula at startup.
+# _jd_db and _q_db are operational config (job description + question bank).
+# At demo time the candidate's resume comes from an uploaded PDF, never from the CSV.
 _DATA = "DATA"
-_cv_db     = pd.read_csv(f"{_DATA}/Datathon Database - CV Database.csv")
-_resume_db = pd.read_csv(f"{_DATA}/Datathon Database - Resume Text.csv")
-_jd_db     = pd.read_csv(f"{_DATA}/Datathon Database - Job Descriptions.csv")
-_q_db      = pd.read_csv(f"{_DATA}/Datathon Database - General Questionnaire.csv")
-_pm135     = pd.read_csv(f"{_DATA}/PROJECT MANAGER 135 csv.csv")
+_cv_db = pd.read_csv(f"{_DATA}/Datathon Database - CV Database.csv")
+_jd_db = pd.read_csv(f"{_DATA}/Datathon Database - Job Descriptions.csv")
+_q_db  = pd.read_csv(f"{_DATA}/Datathon Database - General Questionnaire.csv")
 
 # ── Dimension weights ──────────────────────────────────────────────────────────
 WEIGHTS: dict[str, float] = {
@@ -394,23 +395,8 @@ def _weighted_score(merged: dict[str, float]) -> float:
 def load_data_node(state: InterviewState) -> dict:
     cid = state["candidate_id"]
 
-    # Honor pre-supplied resume text (e.g. from PDF upload via API)
     resume_text = state.get("resume_text") or ""
-    if not resume_text:
-        resume_row = _pm135[_pm135["Candidate ID"] == cid]
-        if resume_row.empty:
-            resume_row = _resume_db[_resume_db["Candidate ID"] == cid]
-        resume_text = str(cast(Any, resume_row["Resume Text"]).iloc[0]) if not resume_row.empty else ""
-
-    # Honor pre-supplied metadata (e.g. {"Candidate Name": "Alice"} from API)
-    cv_metadata = state.get("cv_metadata") or {}
-    if not cv_metadata or set(cv_metadata.keys()) <= {"Candidate ID", "Candidate Name", "Role"}:
-        meta_row = _cv_db[_cv_db["Candidate ID"] == cid]
-        if not meta_row.empty:
-            db_meta = meta_row.iloc[0].to_dict()
-            cv_metadata = {**db_meta, **cv_metadata}  # caller's values win
-        elif not cv_metadata:
-            cv_metadata = {"Candidate ID": cid, "Role": "Project Manager"}
+    cv_metadata = state.get("cv_metadata") or {"Candidate ID": cid, "Role": "Project Manager"}
 
     jd        = _jd_db[_jd_db["Role"] == "Project Manager"].iloc[0].to_dict()
     questions = _q_db.to_dict(orient="records")
@@ -738,16 +724,6 @@ def _build_graph() -> Any:
 graph = _build_graph()
 
 
-# ── Public API ─────────────────────────────────────────────────────────────────
-
-def evaluate_candidate(candidate_id: str, interview_mode: bool = False) -> dict | None:
-    """CV-only evaluation — used by POST /candidates/{cv_id}/evaluate."""
-    config  = {"configurable": {"thread_id": candidate_id}}
-    initial = _initial_state(candidate_id, interview_mode=interview_mode)
-    result  = graph.invoke(initial, config)
-    return result.get("final_evaluation")
-
-
 # ── PDF parsing ────────────────────────────────────────────────────────────────
 def parse_pdf_resume(pdf_bytes: bytes) -> str:
     """Extract text from an uploaded PDF resume."""
@@ -849,20 +825,6 @@ def start_interview(
     return _snapshot_response(interview_id)
 
 
-def start_interview_from_cv_id(
-    interview_id: str,
-    cv_id: str,
-    interview_mode: bool = True,
-) -> dict:
-    """Start an interview using an existing CV-XXX from the dataset (demo path)."""
-    config  = {"configurable": {"thread_id": interview_id}}
-    initial = _initial_state(cv_id, interview_mode=interview_mode)
-    # candidate_id drives the CSV lookup in load_data_node
-    initial["candidate_id"] = cv_id
-    graph.invoke(initial, config)
-    return _snapshot_response(interview_id)
-
-
 def submit_answer(
     interview_id: str,
     answer_text: str,
@@ -885,12 +847,3 @@ def submit_answer(
 def get_interview_snapshot(interview_id: str) -> dict:
     """Fetch current interview state without progressing it."""
     return _snapshot_response(interview_id)
-
-
-def list_candidates(role: Optional[str] = None) -> list[dict]:
-    """List candidate IDs from the dataset (for the demo dropdown)."""
-    df = _cv_db
-    if role:
-        df = df[df["Role"] == role]
-    cols = ["Candidate ID", "Candidate Name", "Role", "Candidate Level", "Years Experience"]
-    return cast(Any, df[cols]).to_dict(orient="records")

@@ -7,10 +7,6 @@ from pydantic import BaseModel, Field
 
 
 # ── Requests ───────────────────────────────────────────────────────────────────
-class StartFromCVRequest(BaseModel):
-    cv_id: str = Field(..., description="Existing dataset candidate ID, e.g. 'CV-001'")
-
-
 class AnswerRequest(BaseModel):
     answer:     str           = Field(..., description="Transcribed text of the candidate's answer")
     audio_b64:  Optional[str] = Field(None, description="Optional base64-encoded audio of the answer for delivery scoring")
@@ -51,19 +47,6 @@ class InterviewSnapshot(BaseModel):
     cv_preview:       Optional[CVPreview]       = None
     questions_asked:  list[dict[str, Any]]      = Field(default_factory=list)
     evaluation:       Optional[dict[str, Any]]  = Field(None, description="Populated when status == 'complete'")
-
-
-class CandidateListing(BaseModel):
-    candidate_id:     str
-    candidate_name:   Optional[str] = None
-    role:             str
-    candidate_level:  Optional[str] = None
-    years_experience: Optional[float] = None
-
-
-class CandidatesResponse(BaseModel):
-    count:      int
-    candidates: list[CandidateListing]
 
 
 class HealthResponse(BaseModel):

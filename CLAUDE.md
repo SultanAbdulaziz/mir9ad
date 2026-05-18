@@ -78,16 +78,6 @@ candidate_name: "Ibrahim Alharbi"   (optional, defaults to "Candidate")
 }
 ```
 
-### Start interview — demo path (no PDF)
-
-```
-POST /interviews/from-cv
-Content-Type: application/json
-
-{ "cv_id": "CV-001" }
-```
-Returns the same `InterviewSnapshot` shape.
-
 ### Submit answer
 
 ```
@@ -192,29 +182,6 @@ Returns the `evaluation` dict directly. Returns **409** if interview is not yet 
 ```
 DELETE /interviews/{interview_id}
 ```
-
-### List candidates (demo dropdown)
-
-```
-GET /candidates?role=Project+Manager
-```
-```json
-{
-  "count": 35,
-  "candidates": [
-    { "candidate_id": "CV-001", "candidate_name": "Ibrahim Alharbi",
-      "role": "Project Manager", "candidate_level": "Strong", "years_experience": 9 },
-    ...
-  ]
-}
-```
-
-### CV-only evaluation (no interview, fast)
-
-```
-POST /candidates/{cv_id}/evaluate
-```
-Returns the full evaluation dict immediately. No session created.
 
 ---
 

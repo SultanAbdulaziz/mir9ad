@@ -3,21 +3,17 @@ FastAPI app exposing the PM interview agent to the React frontend.
 
 Endpoints:
   POST   /interviews              upload PDF resume -> start interview, return first question
-  POST   /interviews/from-cv      start interview using existing CV-XXX from dataset
   GET    /interviews/{id}         current snapshot (for reconnect / polling)
   POST   /interviews/{id}/answer  submit answer (text + optional audio), return next question or final eval
   GET    /interviews/{id}/result  final evaluation (409 if not complete)
   DELETE /interviews/{id}         cancel + cleanup
-
-  GET    /candidates              list dataset candidates (demo)
-  POST   /candidates/{cv_id}/evaluate   CV-only eval (no interview)
 
   GET    /healthz                 liveness probe
 """
 from __future__ import annotations
 
 import uuid
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import FastAPI, File, Form, HTTPException, UploadFile, status
 from fastapi.middleware.cors import CORSMiddleware
@@ -83,23 +79,6 @@ async def start_interview_from_pdf(
     )
 
 
-@app.post("/interviews/from-cv", response_model=schemas.InterviewSnapshot, tags=["interviews"])
-def start_interview_from_existing_cv(req: schemas.StartFromCVRequest) -> dict:
-    """Demo path: start an interview using an existing dataset CV (no PDF needed)."""
-    interview_id = str(uuid.uuid4())
-    try:
-        return agent.start_interview_from_cv_id(
-            interview_id=interview_id,
-            cv_id=req.cv_id,
-            interview_mode=True,
-        )
-    except Exception as exc:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=f"Could not start interview for cv_id={req.cv_id!r}: {exc}",
-        )
-
-
 @app.get("/interviews/{interview_id}", response_model=schemas.InterviewSnapshot, tags=["interviews"])
 def get_interview(interview_id: str) -> dict:
     """Get current interview snapshot (use for polling / reconnect)."""
@@ -145,33 +124,3 @@ def delete_interview(interview_id: str) -> dict[str, str]:
     except Exception:
         pass
     return {"interview_id": interview_id, "status": "cancelled"}
-
-
-# ── Candidates (demo / batch utilities) ────────────────────────────────────────
-@app.get("/candidates", response_model=schemas.CandidatesResponse, tags=["candidates"])
-def list_candidates(role: Optional[str] = "Project Manager") -> dict:
-    """List dataset candidates filtered by role (defaults to Project Manager)."""
-    rows = agent.list_candidates(role=role)
-    candidates = [
-        {
-            "candidate_id":     r["Candidate ID"],
-            "candidate_name":   r.get("Candidate Name"),
-            "role":             r["Role"],
-            "candidate_level":  r.get("Candidate Level"),
-            "years_experience": r.get("Years Experience"),
-        }
-        for r in rows
-    ]
-    return {"count": len(candidates), "candidates": candidates}
-
-
-@app.post("/candidates/{cv_id}/evaluate", tags=["candidates"])
-def evaluate_cv_only(cv_id: str) -> dict[str, Any]:
-    """CV-only evaluation (no interview) — fast path for batch demo."""
-    try:
-        result = agent.evaluate_candidate(cv_id, interview_mode=False)
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Evaluation failed: {exc}")
-    if result is None:
-        raise HTTPException(status_code=500, detail="Evaluation returned no result")
-    return result
