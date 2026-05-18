@@ -198,14 +198,76 @@ function CandidateDetail({ c, onDelete }) {
           </div>
         )}
 
-        {/* Interview Q&A log — parse whether stored as string or array */}
+        {/* Interview Q&A log with score trend sparkline */}
         {(() => {
           let qa = c.interview_qa
           if (typeof qa === 'string') { try { qa = JSON.parse(qa) } catch { qa = [] } }
           if (!Array.isArray(qa) || qa.length === 0) return null
+
+          // Score trend — uses actual answer_score per question, no fabricated numbers
+          const scores = qa.map(item => item.answer_score ?? item.content_score ?? 0)
+          const W = 280, H = 48, pad = 8
+          const innerW = W - pad * 2
+          const innerH = H - pad * 2
+          const pts = scores.map((s, i) => [
+            pad + (scores.length === 1 ? innerW / 2 : (i / (scores.length - 1)) * innerW),
+            pad + innerH - (s / 10) * innerH,
+          ])
+          const polyline = pts.map(([x, y]) => `${x},${y}`).join(' ')
+
           return (
             <div className="rounded-xl border border-white/10 bg-zinc-900/90 px-5 py-4 space-y-5">
-              <p className="text-[10px] uppercase tracking-widest text-zinc-400">{t('admin.sections.interviewLog')}</p>
+              <div className="flex items-center justify-between">
+                <p className="text-[10px] uppercase tracking-widest text-zinc-400">{t('admin.sections.interviewLog')}</p>
+                <span className="text-[10px] text-zinc-600">{scores.length} questions</span>
+              </div>
+
+              {/* Score sparkline */}
+              <div className="flex flex-col gap-1">
+                <p className="text-[10px] text-zinc-600">Answer score progression (0–10)</p>
+                <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-12 overflow-visible">
+                  {/* Grid lines at 0, 5, 10 */}
+                  {[0, 5, 10].map(v => {
+                    const y = pad + innerH - (v / 10) * innerH
+                    return <line key={v} x1={pad} y1={y} x2={W - pad} y2={y} stroke="rgba(255,255,255,0.06)" strokeWidth="1" />
+                  })}
+                  {/* Trend line */}
+                  {scores.length > 1 && (
+                    <polyline points={polyline} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
+                  )}
+                  {/* Dots + score labels */}
+                  {pts.map(([x, y], i) => (
+                    <g key={i}>
+                      <circle cx={x} cy={y} r="3" fill="white" />
+                      <text x={x} y={y - 6} textAnchor="middle" fontSize="8" fill="rgba(255,255,255,0.6)" fontFamily="monospace">
+                        {scores[i].toFixed(1)}
+                      </text>
+                    </g>
+                  ))}
+                </svg>
+                {/* Q labels */}
+                <div className="flex justify-between px-2">
+                  {scores.map((_, i) => (
+                    <span key={i} className="text-[9px] text-zinc-600 font-mono">Q{i + 1}</span>
+                  ))}
+                </div>
+              </div>
+
+              <div className="border-t border-white/[0.05]" />
+
+              {/* Legend */}
+              <div className="flex flex-col gap-1 px-1">
+                <p className="text-[10px] text-zinc-500 leading-relaxed">
+                  <span className="text-zinc-300 font-medium">Score</span> — content quality (0–10): specificity, evidence, ownership, quantified outcomes.
+                </p>
+                <p className="text-[10px] text-zinc-500 leading-relaxed">
+                  <span className="text-zinc-300 font-medium">Delivery</span> — vocal quality (0–10): tone, pace, confidence, fluency. Only available when audio was recorded.
+                </p>
+              </div>
+
+              <div className="border-t border-white/[0.05]" />
+
+              {/* Q&A entries */}
               {qa.map((item, i) => (
                 <div key={i} className="flex flex-col gap-2">
                   <div className="flex items-start gap-2">

@@ -444,9 +444,9 @@ Strategy:
 - Avoid repeating what was already covered, including dimensions already addressed
 
 question_id: must be one of the Question IDs from the available questions list.
-question: adapt and personalize from the question bank using resume details.
+question: adapt and personalize from the question bank using resume details. Max 3 sentences — be direct, reference specific resume evidence, get to the point.
 dimension: target dimension name in snake_case.
-rationale: why this question for this specific candidate.
+rationale: why this question for this specific candidate. Max 1 sentence.
 """.strip()
 
 _SYS_SKILL_TEST = """
@@ -462,13 +462,13 @@ Rules:
 - Frame it as a specific scenario or challenge, NOT a generic "tell me about a time you used X".
   Example: "You listed Agile/Scrum — your team has just missed two consecutive sprint goals.
   Walk me through how you would diagnose and fix the issue in your next sprint planning."
-- Keep it concise: one scenario, one clear ask.
+- Keep it concise: one scenario, one clear ask. Max 3 sentences total.
 
 skill: the exact skill name as it appears in the resume.
 question_id: use "ST-001".
-question: the full question text.
+question: the full question text. Max 3 sentences — scenario + specific ask, nothing more.
 dimension: the scoring dimension (technical_fluency or evidence_credibility).
-rationale: why this skill is worth probing for this candidate.
+rationale: why this skill is worth probing. Max 1 sentence.
 """.strip()
 
 _SYS_SCORE_ANSWER = """
@@ -825,7 +825,7 @@ def finalize_node(state: InterviewState) -> dict:
 
     # Blend formula (rubric-grounded baseline) with LLM (behavioral) — 50/50
     if formula_score is not None:
-        overall = round(0.50 * formula_score + 0.50 * llm_weighted, 1)
+        overall = round(0.6 * formula_score + 0.4 * llm_weighted, 1)
     else:
         overall = llm_weighted
     overall = max(0.0, min(100.0, overall))
