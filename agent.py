@@ -76,27 +76,43 @@ _T = TypeVar("_T", bound=BaseModel)
 
 def _gemini_structured(schema: type[_T], system: str, user: str) -> _T:
     """
-    Call Gemini with structured output. Returns a validated Pydantic instance.
-    Raises RuntimeError if GEMINI_API_KEY is not configured.
+    Call Gemini with structured output + exponential backoff retry.
+    Retries up to 5 times on 429 / 503 (high demand) before raising.
     """
+    import time
+
     client = _get_gemini()
     if client is None:
         raise RuntimeError("GEMINI_API_KEY is not configured")
 
     from google.genai import types as gtypes
 
-    response = client.models.generate_content(
-        model=_GEMINI_MODEL,
-        contents=[user],
-        config=gtypes.GenerateContentConfig(
-            system_instruction=system,
-            response_mime_type="application/json",
-            response_schema=schema,
-            temperature=0,
-        ),
-    )
-    raw = response.text or "{}"
-    return schema(**json.loads(raw))
+    max_retries = 5
+    delay       = 2.0   # seconds — doubles each retry
+
+    for attempt in range(max_retries):
+        try:
+            response = client.models.generate_content(
+                model=_GEMINI_MODEL,
+                contents=[user],
+                config=gtypes.GenerateContentConfig(
+                    system_instruction=system,
+                    response_mime_type="application/json",
+                    response_schema=schema,
+                    temperature=0,
+                ),
+            )
+            raw = response.text or "{}"
+            return schema(**json.loads(raw))
+        except Exception as exc:
+            msg = str(exc).lower()
+            is_retryable = any(x in msg for x in ("429", "503", "quota", "overloaded", "resource_exhausted"))
+            if is_retryable and attempt < max_retries - 1:
+                wait = delay * (2 ** attempt)
+                print(f"[gemini] retryable error (attempt {attempt+1}/{max_retries}): {exc} — retrying in {wait:.1f}s", file=sys.stderr)
+                time.sleep(wait)
+            else:
+                raise
 
 # ── Data ───────────────────────────────────────────────────────────────────────
 # _cv_db is used ONLY to train the linear-regression fit-score formula at startup.
@@ -197,7 +213,7 @@ def _num_personalized(
     n += min(sum(1 for s in dim_scores.values() if s < 6), 2)
     if abs(formula_score - llm_weighted) > 15:
         n += 1
-    return max(1, min(5, n))
+    return max(1, min(1, n))
 
 
 def _build_interview_plan(num_personalized: int) -> list[str]:
@@ -261,9 +277,21 @@ class EvidenceQuote(BaseModel):
     quote:     str = Field(..., description="Direct quote from the resume text.")
 
 
+class ExtractedCVFields(BaseModel):
+    """Structured fields parsed directly from the resume text."""
+    candidate_name:  str = Field(default="", description="Full name of the candidate as written in the resume.")
+    field:           str = Field(default="", description="Professional domain: Management | Finance | Marketing | Tech / Data | Tech / Software")
+    candidate_level: str = Field(default="", description="Seniority: Strong | Average | Weak — based on years experience and evidence depth.")
+    education:       str = Field(default="", description="Highest degree + field, e.g. 'BSc Industrial Engineering'.")
+    certification:   str = Field(default="", description="Most relevant certifications, comma-separated. Empty string if none.")
+    core_skills:     str = Field(default="", description="Comma-separated professional skills from the resume.")
+    tools:           str = Field(default="", description="Comma-separated software tools and platforms from the resume.")
+
+
 class CVAnalysisOutput(BaseModel):
     dimension_scores:    DimensionScoresSchema
     resume_features:     ResumeFeatures
+    extracted_fields:    ExtractedCVFields   = Field(default_factory=ExtractedCVFields)
     evidence_quotes:     list[EvidenceQuote] = Field(default_factory=list)
     risk_flags:          list[str]           = Field(default_factory=list)
     behavioral_summary:  str
@@ -498,22 +526,22 @@ def analyze_cv_node(state: InterviewState) -> dict:
         plan, phase = [], "done"
 
     # ── Write cv_profiles row ─────────────────────────────────────────────────
+    ef = result.extracted_fields
     _supabase_upsert("cv_profiles", {
         "candidate_id":            state["candidate_id"],
-        "role":                    meta.get("Role", state.get("job_description", {}).get("Role", "")),
-        "field":                   meta.get("Field", ""),
-        "candidate_level":         meta.get("Candidate Level", ""),
-        "candidate_name":          meta.get("Candidate Name", ""),
+        "role":                    meta.get("Role") or jd.get("Role", ""),
+        "field":                   ef.field           or meta.get("Field", ""),
+        "candidate_level":         ef.candidate_level or meta.get("Candidate Level", ""),
+        "candidate_name":          ef.candidate_name  or meta.get("Candidate Name", ""),
         "years_experience":        int(features.years_experience),
-        "education":               meta.get("Education", ""),
-        "certification":           meta.get("Certification", ""),
-        "core_skills":             meta.get("Core Skills", ""),
-        "tools":                   meta.get("Tools", ""),
+        "education":               ef.education       or meta.get("Education", ""),
+        "certification":           ef.certification   or meta.get("Certification", ""),
+        "core_skills":             ef.core_skills     or meta.get("Core Skills", ""),
+        "tools":                   ef.tools           or meta.get("Tools", ""),
         "experience_summary":      result.behavioral_summary,
         "expected_strengths":      "; ".join(q.quote for q in result.evidence_quotes[:3]),
         "expected_weaknesses":     "; ".join(result.risk_flags[:3]),
         "surprise_edge_case":      "; ".join(result.risk_flags) if result.risk_flags else "",
-        "testing_use":             meta.get("Testing Use", ""),
         "expected_fit_score":      int(formula_score),
         "expected_recommendation": "",
         "privacy_note":            "Synthetic CV profile; no real personal data.",

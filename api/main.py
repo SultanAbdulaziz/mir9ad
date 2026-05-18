@@ -147,12 +147,18 @@ def get_admin_candidates() -> list[dict]:
     candidates  = sb.table("candidates").select("*").execute().data or []
     cv_profiles = sb.table("cv_profiles").select("*").execute().data or []
 
-    # Index cv_profiles by candidate_id for O(1) merge
-    profiles_by_id = {p["candidate_id"]: p for p in cv_profiles}
+    # Full outer join on candidate_id — show every record from either table
+    candidates_by_id = {c["candidate_id"]: c for c in candidates}
+    profiles_by_id   = {p["candidate_id"]: p for p in cv_profiles}
 
-    merged = []
-    for c in candidates:
-        profile = profiles_by_id.get(c["candidate_id"], {})
-        merged.append({**profile, **c})   # candidates fields take priority on conflict
+    all_ids = set(candidates_by_id) | set(profiles_by_id)
+    merged  = []
+    for cid in all_ids:
+        profile   = profiles_by_id.get(cid, {})
+        candidate = candidates_by_id.get(cid, {})
+        # cv_profiles provides the base; candidates scores overwrite on conflict
+        merged.append({**profile, **candidate})
 
+    # Sort by fit_score descending so highest scores appear first
+    merged.sort(key=lambda x: x.get("fit_score") or 0, reverse=True)
     return merged
