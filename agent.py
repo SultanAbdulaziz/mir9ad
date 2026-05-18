@@ -740,88 +740,12 @@ graph = _build_graph()
 
 # ── Public API ─────────────────────────────────────────────────────────────────
 
-def evaluate_candidate(
-    candidate_id: str,
-    interview_mode: bool = False,
-) -> dict | None:
-    """
-    Evaluate a single PM candidate.
-    - interview_mode=False  → CV-only (fast, used for batch)
-    - interview_mode=True   → live interview: 3 general (GQ-001, GQ-002, GQ-020) + 1–5 personalized
-                              (count derived from risk flags + weak dimensions + formula/LLM delta)
-    """
-    config: dict = {"configurable": {"thread_id": candidate_id}}
-
-    initial: InterviewState = {
-        "candidate_id":        candidate_id,
-        "resume_text":         "",
-        "cv_metadata":         {},
-        "job_description":     {},
-        "question_bank":       [],
-        "cv_dimension_scores": None,
-        "evidence_quotes":      {},
-        "risk_flags":           [],
-        "resume_features":      None,
-        "formula_score":        None,
-        "interview_mode":       interview_mode,
-        "interview_phase":      "cv_analysis",
-        "current_question":     None,
-        "current_answer_audio": None,
-        "questions_asked":      [],
-        "dimensions_covered":   [],
-        "interview_plan":       [],
-        "final_evaluation":     None,
-        "messages":             [],
-    }
-
-    if not interview_mode:
-        result = graph.invoke(initial, config)
-        return result["final_evaluation"]
-
-    # Interactive mode — loop until no more interrupts
-    result = graph.invoke(initial, config)
-    while True:
-        paused = result.get("__interrupt__")
-        if not paused:
-            break
-        # Interrupt objects expose `.value` (LangGraph ≥0.2); fall back to dict access
-        first   = paused[0]
-        payload = first.value if hasattr(first, "value") else first["value"]
-        question_text = payload["question"] if isinstance(payload, dict) else str(payload)
-        print(f"\nInterviewer: {question_text}")
-        answer = input("Candidate: ").strip()
-        result = graph.invoke(Command(resume=answer), config)
-
-    return graph.get_state(config).values.get("final_evaluation")
-
-
-def run_batch(output_file: str = "results.json", limit: int | None = None) -> list[dict]:
-    """Evaluate all 135 PM candidates (CV-only). Saves JSON to output_file."""
-    ids = _pm135["Candidate ID"].tolist()
-    if limit:
-        ids = ids[:limit]
-
-    results: list[dict] = []
-    for i, cid in enumerate(ids, 1):
-        print(f"[{i:3}/{len(ids)}] {cid} ...", end=" ", flush=True)
-        try:
-            ev = evaluate_candidate(cid, interview_mode=False)
-            if ev is None:
-                raise ValueError("evaluate_candidate returned None")
-            results.append(ev)
-            score = ev["overall_fit_score"]
-            rec   = ev["recommendation"]
-            flags = ev.get("risk_flags", [])
-            print(f"{score:5.1f} | {rec}" + (f" | flags: {flags}" if flags else ""))
-        except Exception as exc:
-            print(f"ERROR: {exc}")
-            results.append({"candidate_id": cid, "error": str(exc)})
-
-    with open(output_file, "w", encoding="utf-8") as fh:
-        json.dump(results, fh, ensure_ascii=False, indent=2)
-
-    print(f"\nSaved {len(results)} results → {output_file}")
-    return results
+def evaluate_candidate(candidate_id: str, interview_mode: bool = False) -> dict | None:
+    """CV-only evaluation — used by POST /candidates/{cv_id}/evaluate."""
+    config  = {"configurable": {"thread_id": candidate_id}}
+    initial = _initial_state(candidate_id, interview_mode=interview_mode)
+    result  = graph.invoke(initial, config)
+    return result.get("final_evaluation")
 
 
 # ── PDF parsing ────────────────────────────────────────────────────────────────
@@ -970,22 +894,3 @@ def list_candidates(role: Optional[str] = None) -> list[dict]:
         df = df[df["Role"] == role]
     cols = ["Candidate ID", "Candidate Name", "Role", "Candidate Level", "Years Experience"]
     return cast(Any, df[cols]).to_dict(orient="records")
-
-
-# ── CLI ────────────────────────────────────────────────────────────────────────
-if __name__ == "__main__":
-    if len(sys.argv) > 1 and sys.argv[1] == "batch":
-        limit = int(sys.argv[2]) if len(sys.argv) > 2 else None
-        run_batch(limit=limit)
-
-    elif len(sys.argv) > 1:
-        cid  = sys.argv[1]
-        mode = "--interview" in sys.argv
-        out  = evaluate_candidate(cid, interview_mode=mode)
-        if out is not None:
-            print(json.dumps(out, ensure_ascii=False, indent=2))
-
-    else:
-        out = evaluate_candidate("CV-001")
-        if out is not None:
-            print(json.dumps(out, ensure_ascii=False, indent=2))
