@@ -31,7 +31,10 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # tighten for production
+    allow_origins=[
+        "http://localhost:5173",   # Vite default
+        "http://127.0.0.1:5173",
+    ],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -43,7 +46,7 @@ app.add_middleware(
 def healthz() -> schemas.HealthResponse:
     return schemas.HealthResponse(
         status="ok",
-        gemini_enabled=agent._get_gemini() is not None,
+        llm_ready=agent._get_gemini() is not None,
     )
 
 

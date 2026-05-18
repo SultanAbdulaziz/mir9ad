@@ -50,5 +50,5 @@ class InterviewSnapshot(BaseModel):
 
 
 class HealthResponse(BaseModel):
-    status:        str
-    gemini_enabled: bool
+    status:      str
+    llm_ready:   bool   = Field(..., description="True if Gemini API key is configured")

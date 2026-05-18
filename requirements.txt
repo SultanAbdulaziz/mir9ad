@@ -5,12 +5,12 @@ seaborn
 openpyxl
 scikit-learn
 python-dotenv
-langchain-openai
 langgraph
+langchain-core
 pydantic
 tqdm
 
-# Multimodal delivery scoring
+# LLM (text + multimodal audio)
 google-genai
 
 # API

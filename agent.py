@@ -3,31 +3,24 @@ from __future__ import annotations
 import json
 import os
 import sys
-from typing import Annotated, Any, Optional, TypedDict, cast
+from typing import Annotated, Any, Optional, TypeVar, TypedDict, cast
 
 import pandas as pd
 from dotenv import load_dotenv
-from langchain_core.messages import AIMessage, HumanMessage, SystemMessage
-from langchain_openai import ChatOpenAI
+from langchain_core.messages import AIMessage, HumanMessage
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.graph import END, START, StateGraph
 from langgraph.graph.message import add_messages
 from langgraph.types import Command, interrupt
-from pydantic import BaseModel, Field, SecretStr
+from pydantic import BaseModel, Field
 from sklearn.linear_model import LinearRegression
 
 load_dotenv()
 
-# ── Models ─────────────────────────────────────────────────────────────────────
-llm = ChatOpenAI(
-    model="gpt-4o",
-    api_key=SecretStr(os.getenv("GITHUB_TOKEN") or ""),
-    base_url=os.getenv("GITHUB_API_URL"),
-    temperature=0,
-)
-
-# Gemini client for multimodal (audio) delivery scoring — lazy init, optional
+# ── Model ──────────────────────────────────────────────────────────────────────
+# Single Gemini client handles both text scoring and audio delivery scoring.
 _GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
+_GEMINI_MODEL   = "gemini-2.5-flash"   # used for text AND audio
 _gemini_client: Any = None
 
 
@@ -44,6 +37,34 @@ def _get_gemini() -> Any:
         return _gemini_client
     except ImportError:
         return None
+
+
+_T = TypeVar("_T", bound=BaseModel)
+
+
+def _gemini_structured(schema: type[_T], system: str, user: str) -> _T:
+    """
+    Call Gemini with structured output. Returns a validated Pydantic instance.
+    Raises RuntimeError if GEMINI_API_KEY is not configured.
+    """
+    client = _get_gemini()
+    if client is None:
+        raise RuntimeError("GEMINI_API_KEY is not configured")
+
+    from google.genai import types as gtypes
+
+    response = client.models.generate_content(
+        model=_GEMINI_MODEL,
+        contents=[user],
+        config=gtypes.GenerateContentConfig(
+            system_instruction=system,
+            response_mime_type="application/json",
+            response_schema=schema,
+            temperature=0,
+        ),
+    )
+    raw = response.text or "{}"
+    return schema(**json.loads(raw))
 
 # ── Data ───────────────────────────────────────────────────────────────────────
 # _cv_db is used ONLY to train the linear-regression fit-score formula at startup.
@@ -164,7 +185,7 @@ class InterviewState(TypedDict):
     question_bank:   list
 
     cv_dimension_scores: Optional[dict]
-    evidence_quotes:     dict
+    evidence_quotes:     list   # list of {dimension, quote} dicts
     risk_flags:          list
     resume_features:     Optional[dict]   # years_experience, num_skills, num_tools
     formula_score:       Optional[float]  # baseline score from rubric formula
@@ -202,11 +223,17 @@ class ResumeFeatures(BaseModel):
     num_tools:        int   = Field(..., ge=0, description="Count of distinct named software tools/platforms (e.g. Jira, MS Project).")
 
 
+class EvidenceQuote(BaseModel):
+    """A direct quote from the resume backing a specific dimension score."""
+    dimension: str = Field(..., description="One of: delivery_ownership, business_impact, stakeholder_management, leadership_signals, etc.")
+    quote:     str = Field(..., description="Direct quote from the resume text.")
+
+
 class CVAnalysisOutput(BaseModel):
     dimension_scores:    DimensionScoresSchema
     resume_features:     ResumeFeatures
-    evidence_quotes:     dict[str, list[str]] = Field(default_factory=dict)
-    risk_flags:          list[str]            = Field(default_factory=list)
+    evidence_quotes:     list[EvidenceQuote] = Field(default_factory=list)
+    risk_flags:          list[str]           = Field(default_factory=list)
     behavioral_summary:  str
     trajectory_analysis: str
 
@@ -247,14 +274,7 @@ class FinalEvaluationNarrative(BaseModel):
     explanation:         str
 
 
-# ── Structured LLM chains (module-level, built once) ──────────────────────────
-_cv_llm       = llm.with_structured_output(CVAnalysisOutput,        method="function_calling")
-_question_llm = llm.with_structured_output(QuestionSelection,       method="function_calling")
-_score_llm    = llm.with_structured_output(AnswerScore,             method="function_calling")
-_finalize_llm = llm.with_structured_output(FinalEvaluationNarrative, method="function_calling")
-
-
-_GEMINI_MODEL = "gemini-2.0-flash"
+# ── Delivery scoring prompt (audio-only path) ─────────────────────────────────
 _DELIVERY_PROMPT = """
 You are scoring the DELIVERY of a Project Manager interview answer based on the candidate's audio.
 You are NOT scoring the content of what they said — only HOW they said it.
@@ -276,7 +296,7 @@ reading_from_script | anxious | monotone | evasive | confident | clear | rushed 
 
 def score_delivery_from_audio(audio_bytes: bytes, mime_type: str = "audio/webm") -> Optional[dict]:
     """
-    Score delivery quality from a candidate's audio response using Gemini 2.0 Flash.
+    Score delivery quality from a candidate's audio response.
     Returns DeliveryScore dict, or None if Gemini is unavailable or call fails.
     """
     client = _get_gemini()
@@ -333,7 +353,7 @@ resume_features (used by an independent statistical baseline — be PRECISE):
                 Do NOT count tools/software here. Exclude generic items like "basic communication".
   - num_tools:  count of distinct named software/platforms (Jira, Asana, MS Project, Excel, Confluence, etc.).
 
-evidence_quotes: pull direct quotes from the resume for delivery_ownership, business_impact, stakeholder_management, leadership_signals.
+evidence_quotes: list of {dimension, quote} records — pull direct quotes from the resume backing your scores for delivery_ownership, business_impact, stakeholder_management, leadership_signals. One record per quote.
 behavioral_summary: 2–3 sentence behavioral profile of this specific candidate.
 trajectory_analysis: 1–2 sentence career progression insight.
 """.strip()
@@ -406,7 +426,7 @@ def load_data_node(state: InterviewState) -> dict:
         "cv_metadata":          cv_metadata,
         "job_description":      jd,
         "question_bank":        questions,
-        "evidence_quotes":      {},
+        "evidence_quotes":      [],
         "risk_flags":           [],
         "questions_asked":      [],
         "dimensions_covered":   [],
@@ -431,9 +451,7 @@ def analyze_cv_node(state: InterviewState) -> dict:
         f"Evaluation Focus: {jd.get('Evaluation Focus', '')}"
     )
 
-    result = cast(CVAnalysisOutput, _cv_llm.invoke(
-        [SystemMessage(content=_SYS_CV_ANALYSIS), HumanMessage(content=user_msg)]
-    ))
+    result = _gemini_structured(CVAnalysisOutput, _SYS_CV_ANALYSIS, user_msg)
 
     features      = result.resume_features
     dim_scores    = result.dimension_scores.model_dump()
@@ -449,7 +467,7 @@ def analyze_cv_node(state: InterviewState) -> dict:
 
     return {
         "cv_dimension_scores": dim_scores,
-        "evidence_quotes":     result.evidence_quotes,
+        "evidence_quotes":     [q.model_dump() for q in result.evidence_quotes],
         "risk_flags":          result.risk_flags,
         "resume_features":     features.model_dump(),
         "formula_score":       formula_score,
@@ -507,9 +525,7 @@ def select_question_node(state: InterviewState) -> dict:
         f"AVAILABLE QUESTIONS:\n{json.dumps(available, ensure_ascii=False, indent=2)}"
     )
 
-    result = cast(QuestionSelection, _question_llm.invoke(
-        [SystemMessage(content=_SYS_SELECT_QUESTION), HumanMessage(content=user_msg)]
-    ))
+    result = _gemini_structured(QuestionSelection, _SYS_SELECT_QUESTION, user_msg)
 
     return {"current_question": {**result.model_dump(), "type": "personalized"}}
 
@@ -557,9 +573,7 @@ def score_answer_node(state: InterviewState) -> dict:
     )
 
     # ── Content score (text-based) ────────────────────────────────────────────
-    result = cast(AnswerScore, _score_llm.invoke(
-        [SystemMessage(content=_SYS_SCORE_ANSWER), HumanMessage(content=user_msg)]
-    ))
+    result = _gemini_structured(AnswerScore, _SYS_SCORE_ANSWER, user_msg)
     content_score = float(result.score)
 
     # ── Delivery score (audio-based, optional) ────────────────────────────────
@@ -652,13 +666,11 @@ def finalize_node(state: InterviewState) -> dict:
         f"BLENDED OVERALL FIT SCORE: {overall} | RECOMMENDATION: {recommendation}\n\n"
         f"INTERVIEW Q&A:\n"
         + (json.dumps(qa_pairs, ensure_ascii=False, indent=2) if qa_pairs else "CV-only — no interview conducted.")
-        + f"\n\nEVIDENCE QUOTES:\n{json.dumps(state.get('evidence_quotes', {}), ensure_ascii=False, indent=2)}"
+        + f"\n\nEVIDENCE QUOTES:\n{json.dumps(state.get('evidence_quotes', []), ensure_ascii=False, indent=2)}"
         + f"\n\nRISK FLAGS: {deduped_flags}"
     )
 
-    narrative = cast(FinalEvaluationNarrative, _finalize_llm.invoke(
-        [SystemMessage(content=_SYS_FINALIZE), HumanMessage(content=user_msg)]
-    ))
+    narrative = _gemini_structured(FinalEvaluationNarrative, _SYS_FINALIZE, user_msg)
 
     # Merge LLM narrative with computed values — never trust LLM for numbers
     evaluation: dict = {
@@ -744,7 +756,7 @@ def _initial_state(interview_id: str, interview_mode: bool = True) -> InterviewS
         "job_description":      {},
         "question_bank":        [],
         "cv_dimension_scores":  None,
-        "evidence_quotes":      {},
+        "evidence_quotes":      [],
         "risk_flags":           [],
         "resume_features":      None,
         "formula_score":        None,
