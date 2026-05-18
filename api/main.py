@@ -40,17 +40,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# ── Serve built React frontend (production only) ───────────────────────────────
-_STATIC = Path(__file__).parent.parent / "static"
-if _STATIC.exists():
-    app.mount("/assets", StaticFiles(directory=_STATIC / "assets"), name="assets")
-
-    @app.get("/{full_path:path}", include_in_schema=False)
-    def serve_spa(full_path: str) -> FileResponse:
-        """Catch-all: serve index.html for all non-API routes (SPA routing)."""
-        index = _STATIC / "index.html"
-        return FileResponse(index)
-
 
 # ── Health ─────────────────────────────────────────────────────────────────────
 @app.get("/healthz", response_model=schemas.HealthResponse, tags=["meta"])
@@ -69,7 +58,6 @@ async def start_interview_from_pdf(
 ) -> dict:
     """Start a new interview from an uploaded PDF resume."""
     if (resume.content_type or "").lower() not in {"application/pdf", "application/octet-stream"}:
-        # Allow octet-stream because some browsers don't set application/pdf
         if not (resume.filename or "").lower().endswith(".pdf"):
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -132,7 +120,6 @@ def delete_interview(interview_id: str) -> dict[str, str]:
     """Cancel and drop the interview state from the checkpointer."""
     config = {"configurable": {"thread_id": interview_id}}
     try:
-        # langgraph: clear the thread by writing a null checkpoint
         agent.graph.update_state(config, {"interview_phase": "cancelled"})
     except Exception:
         pass
@@ -142,11 +129,7 @@ def delete_interview(interview_id: str) -> dict[str, str]:
 # ── Admin ──────────────────────────────────────────────────────────────────────
 @app.get("/admin/candidates", tags=["admin"])
 def get_admin_candidates() -> list[dict]:
-    """
-    Return all candidate records merged from both DB tables.
-    candidates  — scores & recommendation
-    cv_profiles — parsed CV fields
-    """
+    """Return all candidate records merged from both DB tables."""
     sb = agent._get_supabase()
     if sb is None:
         raise HTTPException(
@@ -157,7 +140,6 @@ def get_admin_candidates() -> list[dict]:
     candidates  = sb.table("candidates").select("*").execute().data or []
     cv_profiles = sb.table("cv_profiles").select("*").execute().data or []
 
-    # Inner join — only return candidates present in BOTH tables
     candidates_by_id = {c["candidate_id"]: c for c in candidates}
     profiles_by_id   = {p["candidate_id"]: p for p in cv_profiles}
 
@@ -184,3 +166,15 @@ def delete_candidate(candidate_id: str) -> dict[str, str]:
     sb.table("candidates").delete().eq("candidate_id", candidate_id).execute()
     sb.table("cv_profiles").delete().eq("candidate_id", candidate_id).execute()
     return {"candidate_id": candidate_id, "status": "deleted"}
+
+
+# ── Serve built React frontend ─────────────────────────────────────────────────
+# MUST be registered LAST so the catch-all doesn't intercept API routes
+_STATIC = Path(__file__).parent.parent / "static"
+if _STATIC.exists():
+    app.mount("/assets", StaticFiles(directory=_STATIC / "assets"), name="assets")
+
+    @app.get("/{full_path:path}", include_in_schema=False)
+    def serve_spa(full_path: str) -> FileResponse:
+        """Catch-all: serve index.html for all non-API routes (SPA routing)."""
+        return FileResponse(_STATIC / "index.html")
