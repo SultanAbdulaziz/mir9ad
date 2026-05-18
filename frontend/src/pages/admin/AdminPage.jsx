@@ -217,9 +217,15 @@ export default function AdminPage() {
   useEffect(() => {
     fetch(`${API}/admin/candidates`)
       .then(r => { if (!r.ok) throw new Error(`Server error: ${r.status}`); return r.json() })
-      .then(data => { setCandidates(data); if (data.length) setSelected(data[0]) })
-      .catch(err => setFetchError(err.message))
-      .finally(() => setLoading(false))
+      .then(data => {
+        setCandidates(data)
+        if (data.length) setSelected(data[0])
+        setLoading(false)   // batched with above — single render
+      })
+      .catch(err => {
+        setFetchError(err.message)
+        setLoading(false)
+      })
   }, [])
 
   function select(c) { setSelected(c); setPanelOpen(true) }
@@ -258,7 +264,10 @@ export default function AdminPage() {
             <h1 className="text-sm font-semibold text-white">{t('admin.listHeading')}</h1>
             <p className="text-xs text-zinc-600 mt-0.5">{t('admin.listSubheading')}</p>
           </div>
-          <div className="flex-1 overflow-y-auto">
+          <div
+            className="flex-1 overflow-y-auto transition-opacity duration-300"
+            style={{ opacity: loading ? 0 : 1 }}
+          >
             {loading && (
               <div className="flex items-center justify-center gap-2 py-16 text-zinc-600 text-sm">
                 <span className="w-4 h-4 border-2 border-zinc-700 border-t-zinc-400 rounded-full animate-spin" aria-hidden="true" />

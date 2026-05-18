@@ -110,7 +110,12 @@ def _gemini_structured(schema: type[_T], system: str, user: str, model: str = _G
             return schema(**json.loads(raw))
         except Exception as exc:
             msg = str(exc).lower()
-            is_retryable = any(x in msg for x in ("429", "503", "quota", "overloaded", "resource_exhausted"))
+            is_retryable = (
+                any(x in msg for x in ("429", "503", "quota", "overloaded", "resource_exhausted"))
+                or "readerror" in type(exc).__name__.lower()   # httpx.ReadError (errno 35 / EAGAIN)
+                or "resource temporarily unavailable" in msg
+                or "errno 35" in msg
+            )
             if is_retryable and attempt < max_retries - 1:
                 wait = delay * (2 ** attempt)
                 print(f"[gemini] retryable error (attempt {attempt+1}/{max_retries}): {exc} — retrying in {wait:.1f}s", file=sys.stderr)
@@ -129,15 +134,16 @@ _q_db  = pd.read_csv(f"{_DATA}/Datathon Database - General Questionnaire.csv")
 
 # ── Dimension weights ──────────────────────────────────────────────────────────
 WEIGHTS: dict[str, float] = {
-    "delivery_ownership":      0.18,
-    "leadership_signals":      0.15,
-    "business_impact":         0.15,
-    "stakeholder_management":  0.12,
-    "evidence_credibility":    0.12,
-    "pm_readiness":            0.10,
-    "strategic_thinking":      0.08,
-    "communication_clarity":   0.05,
-    "technical_fluency":       0.03,
+    "seriousness":             0.25,   # new — scaled others ×0.75 to compensate
+    "delivery_ownership":      0.14,
+    "leadership_signals":      0.11,
+    "business_impact":         0.11,
+    "stakeholder_management":  0.09,
+    "evidence_credibility":    0.09,
+    "pm_readiness":            0.07,
+    "strategic_thinking":      0.06,
+    "communication_clarity":   0.04,
+    "technical_fluency":       0.02,
     "authenticity_confidence": 0.02,
 }
 
@@ -256,6 +262,7 @@ class InterviewState(TypedDict):
 
 # ── Pydantic output schemas ────────────────────────────────────────────────────
 class DimensionScoresSchema(BaseModel):
+    seriousness:             float = Field(..., ge=0, le=10)
     delivery_ownership:      float = Field(..., ge=0, le=10)
     business_impact:         float = Field(..., ge=0, le=10)
     stakeholder_management:  float = Field(..., ge=0, le=10)
@@ -395,18 +402,19 @@ _SYS_CV_ANALYSIS = """
 You are an elite AI recruitment intelligence engine evaluating candidates for PROJECT MANAGER.
 You perform deep behavioral analysis — NOT keyword matching. Infer real PM capability from evidence.
 
-Score each of the 10 dimensions (0–10 float):
+Score each of the 11 dimensions (0–10 float):
 
-1. delivery_ownership     — Ownership verbs (led, drove, executed, launched, coordinated). Initiative and execution responsibility.
-2. business_impact        — Quantified outcomes ONLY. %, revenue, time saved, KPI gains. "Improved workflows" with no number = low score.
-3. stakeholder_management — Cross-functional coordination, executive communication, vendor management, multi-team alignment.
-4. leadership_signals     — Strategic thinking, prioritization, decision ownership, navigating ambiguity, directing teams.
-5. communication_clarity  — Clear, concise, specific writing. Penalize buzzwords, fluff, generic claims.
-6. technical_fluency      — PM tools (Jira, MS Project, Asana, Confluence) and methodologies (Agile, Scrum, PMP, PRINCE2).
-7. evidence_credibility   — Only trust claims with context + scale + outcome. Weak claim = low score.
-8. strategic_thinking     — Roadmap thinking, business alignment, prioritization frameworks, cross-dept vision.
-9. pm_readiness           — Overall readiness: experience level + trajectory + role-specific maturity combined.
-10. authenticity_confidence — Detect red flags: keyword stuffing, title inflation (2 yrs exp + "enterprise transformation leader"), tool dumping, unrealistic claims.
+1. seriousness            — Is the candidate treating this interview seriously? Penalize heavily: joke answers, one-word responses, off-topic rambling, laughing through questions, refusal to engage, or clear lack of preparation. High score = candidate is focused, respectful, and genuinely attempting to answer. Low score = candidate is dismissive, flippant, or not taking the process seriously.
+2. delivery_ownership     — Ownership verbs (led, drove, executed, launched, coordinated). Initiative and execution responsibility.
+3. business_impact        — Quantified outcomes ONLY. %, revenue, time saved, KPI gains. "Improved workflows" with no number = low score.
+4. stakeholder_management — Cross-functional coordination, executive communication, vendor management, multi-team alignment.
+5. leadership_signals     — Strategic thinking, prioritization, decision ownership, navigating ambiguity, directing teams.
+6. communication_clarity  — Clear, concise, specific writing. Penalize buzzwords, fluff, generic claims.
+7. technical_fluency      — PM tools (Jira, MS Project, Asana, Confluence) and methodologies (Agile, Scrum, PMP, PRINCE2).
+8. evidence_credibility   — Only trust claims with context + scale + outcome. Weak claim = low score.
+9. strategic_thinking     — Roadmap thinking, business alignment, prioritization frameworks, cross-dept vision.
+10. pm_readiness           — Overall readiness: experience level + trajectory + role-specific maturity combined.
+11. authenticity_confidence — Detect red flags: keyword stuffing, title inflation (2 yrs exp + "enterprise transformation leader"), tool dumping, unrealistic claims.
 
 Risk flag values (use these exact snake_case strings):
 keyword_stuffing | title_inflation | experience_mismatch | vague_impact | tool_dumping | career_instability | seniority_inconsistency
@@ -427,10 +435,10 @@ _SYS_SELECT_QUESTION = """
 You are a skilled PM interviewer choosing the next question for a candidate.
 
 Strategy:
-- Target the weakest uncovered dimensions first
+- Target uncovered dimensions only — the available questions list is pre-filtered to these dimensions
 - Personalize the question using specific details from the resume (mention real companies, projects, or claims)
 - Prefer questions that surface depth: specific decisions, tradeoffs, metrics, ownership level
-- Avoid repeating what was already covered
+- Avoid repeating what was already covered, including dimensions already addressed
 
 question_id: must be one of the Question IDs from the available questions list.
 question: adapt and personalize from the question bank using resume details.
@@ -440,6 +448,8 @@ rationale: why this question for this specific candidate.
 
 _SYS_SCORE_ANSWER = """
 You are scoring a Project Manager interview answer on a 0–10 scale.
+Score CONTENT ONLY — what the candidate said, not how they said it.
+Vocal delivery, speaking pace, and confidence are scored separately by a dedicated delivery scorer.
 
 Scoring rubric:
 - 9–10: Specific example, quantified outcome, clear ownership, decision context, tradeoffs mentioned
@@ -467,6 +477,15 @@ confidence_score (0.0–1.0):
 strongest_signals: exactly 3 specific evidence-backed PM strengths (quote resume text).
 weakest_signals:   exactly 3 specific gaps or concerns with evidence.
 explanation: 3–4 sentences explaining the hiring decision — sound like executive HR intelligence, not keyword matching.
+
+behavioral_summary: 2–3 sentences synthesizing BOTH CV signals and interview performance.
+  Do not re-read the resume — this should reflect how the candidate performed under questioning,
+  whether their answers matched their CV claims, and their overall behavioral pattern.
+trajectory_analysis: 1–2 sentences on career progression informed by how the candidate
+  discussed their experience during the interview, not just what the resume lists.
+
+Note: some Q&A pairs may have null delivery_score (audio was not provided for that answer).
+  Only reference delivery quality when delivery_score is present. Do not flag missing delivery data.
 """.strip()
 
 

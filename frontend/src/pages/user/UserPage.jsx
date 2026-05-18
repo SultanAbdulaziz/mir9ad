@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, CheckCircle2 } from 'lucide-react'
 import ResumeUpload from './ResumeUpload'
@@ -57,37 +57,56 @@ const STORAGE_KEY = 'mir9ad_interview_id'
 // ── UI helpers ────────────────────────────────────────────────────────────────
 function StepBar({ current }) {
   const { t } = useTranslation()
+  const last = STEPS.length - 1
+
   return (
-    <nav aria-label="Progress" className="w-full flex justify-center">
-      <ol role="list" className="flex items-start gap-0">
+    <nav aria-label="Progress" className="flex flex-col items-center gap-2">
+      {/* Row 1 — circles + connectors, completely isolated from labels */}
+      <div className="flex items-center">
         {STEPS.map((step, idx) => {
           const done   = idx < current
           const active = idx === current
-          const last   = idx === STEPS.length - 1
           return (
-            <li key={step} className="flex items-center">
-              <div className="flex flex-col items-center gap-2">
-                <div aria-current={active ? 'step' : undefined}
-                  className={['flex items-center justify-center w-8 h-8 rounded-full border text-xs font-semibold transition-all duration-200',
-                    done   ? 'border-white bg-white text-black'
-                    : active ? 'border-white/60 bg-white/5 text-white'
-                    :          'border-white/10 bg-transparent text-white/30'].join(' ')}>
-                  {done ? <Check size={14} aria-hidden="true" /> : <span aria-hidden="true">{idx + 1}</span>}
-                </div>
-                <span className={['text-[10px] font-medium tracking-widest uppercase whitespace-nowrap',
+            <div key={step} className="flex items-center">
+              <div
+                aria-current={active ? 'step' : undefined}
+                className={['flex items-center justify-center w-8 h-8 rounded-full border text-xs font-semibold transition-all duration-200',
+                  done   ? 'border-white bg-white text-black'
+                  : active ? 'border-white/60 bg-white/5 text-white'
+                  :          'border-white/10 bg-transparent text-white/30'].join(' ')}
+              >
+                {done ? <Check size={14} aria-hidden="true" /> : <span aria-hidden="true">{idx + 1}</span>}
+              </div>
+              {idx < last && (
+                <div aria-hidden="true"
+                  className={['w-16 sm:w-24 h-px mx-3 transition-colors duration-300',
+                    done ? 'bg-white/60' : 'bg-white/10'].join(' ')} />
+              )}
+            </div>
+          )
+        })}
+      </div>
+
+      {/* Row 2 — labels centred under each circle using the same fixed widths */}
+      <div className="flex items-start">
+        {STEPS.map((step, idx) => {
+          const done   = idx < current
+          const active = idx === current
+          return (
+            <div key={step} className="flex items-start">
+              {/* circle-width anchor so label centres under it */}
+              <div className="w-8 flex justify-center">
+                <span className={['text-[10px] font-medium tracking-widest uppercase text-center',
                   active ? 'text-white' : done ? 'text-white/50' : 'text-white/20'].join(' ')}>
                   {t(`user.steps.${step}`)}
                 </span>
               </div>
-              {!last && (
-                <div aria-hidden="true"
-                  className={['w-16 sm:w-24 h-px mx-3 mb-5 transition-colors duration-300',
-                    done ? 'bg-white/60' : 'bg-white/10'].join(' ')} />
-              )}
-            </li>
+              {/* spacer matching connector width */}
+              {idx < last && <div className="w-[88px] sm:w-[120px]" aria-hidden="true" />}
+            </div>
           )
         })}
-      </ol>
+      </div>
     </nav>
   )
 }
@@ -106,6 +125,37 @@ export default function UserPage() {
   const [cvError,     setCvError]     = useState('')
   const [answering,   setAnswering]   = useState(false)
   const [answerError, setAnswerError] = useState('')
+  const [barVisible, setBarVisible] = useState(false)
+  const barFillRef  = useRef(null)   // direct DOM ref — no React state for width
+  const barPctRef   = useRef(0)
+  const barTimer    = useRef(null)
+
+  function setBarWidth(pct) {
+    barPctRef.current = pct
+    if (barFillRef.current)
+      barFillRef.current.style.width = `${pct}%`
+  }
+
+  // Fake progress bar — imperative DOM updates to avoid re-render flicker
+  useEffect(() => {
+    if (cvLoading) {
+      setBarWidth(0)
+      setBarVisible(true)
+      barTimer.current = setInterval(() => {
+        const p = barPctRef.current
+        const next = p < 70 ? p + 4 : p < 88 ? p + 1.2 : p < 94 ? p + 0.25 : p
+        setBarWidth(next)
+      }, 200)
+    } else {
+      clearInterval(barTimer.current)
+      if (barFillRef.current) {
+        barFillRef.current.style.transition = 'width 400ms ease-out'
+        setBarWidth(100)
+      }
+      setTimeout(() => { setBarVisible(false); setBarWidth(0) }, 600)
+    }
+    return () => clearInterval(barTimer.current)
+  }, [cvLoading])
 
   const stepKey = STEP_KEYS[step]
 
@@ -183,6 +233,7 @@ export default function UserPage() {
         </div>
       </header>
 
+
       <main className="flex-1 flex flex-col items-center px-4 pt-32 pb-16 gap-12 relative z-10">
         <StepBar current={step} />
 
@@ -200,10 +251,14 @@ export default function UserPage() {
         {step === 0 && (
           <>
             <ResumeUpload onNext={handleCVUploaded} disabled={cvLoading} />
-            {cvLoading && (
-              <div className="flex items-center gap-3 text-sm text-zinc-400 animate-fade-in-up">
-                <span className="w-4 h-4 border-2 border-zinc-600 border-t-white rounded-full animate-spin" aria-hidden="true" />
-                {t('user.upload.fetchingQuestions')}
+            {/* Progress bar below the uploader */}
+            {barVisible && (
+              <div className="w-full max-w-lg h-0.5 bg-white/10 rounded-full overflow-hidden">
+                <div
+                  ref={barFillRef}
+                  className="h-full bg-white rounded-full"
+                  style={{ width: '0%', willChange: 'width' }}
+                />
               </div>
             )}
             {cvError && (
