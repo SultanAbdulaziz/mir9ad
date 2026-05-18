@@ -134,16 +134,15 @@ _q_db  = pd.read_csv(f"{_DATA}/Datathon Database - General Questionnaire.csv")
 
 # ── Dimension weights ──────────────────────────────────────────────────────────
 WEIGHTS: dict[str, float] = {
-    "seriousness":             0.25,   # new — scaled others ×0.75 to compensate
-    "delivery_ownership":      0.14,
-    "leadership_signals":      0.11,
-    "business_impact":         0.11,
-    "stakeholder_management":  0.09,
-    "evidence_credibility":    0.09,
-    "pm_readiness":            0.07,
-    "strategic_thinking":      0.06,
-    "communication_clarity":   0.04,
-    "technical_fluency":       0.02,
+    "delivery_ownership":      0.18,
+    "leadership_signals":      0.15,
+    "business_impact":         0.15,
+    "stakeholder_management":  0.12,
+    "evidence_credibility":    0.12,
+    "pm_readiness":            0.10,
+    "strategic_thinking":      0.08,
+    "communication_clarity":   0.05,
+    "technical_fluency":       0.03,
     "authenticity_confidence": 0.02,
 }
 
@@ -262,7 +261,6 @@ class InterviewState(TypedDict):
 
 # ── Pydantic output schemas ────────────────────────────────────────────────────
 class DimensionScoresSchema(BaseModel):
-    seriousness:             float = Field(..., ge=0, le=10)
     delivery_ownership:      float = Field(..., ge=0, le=10)
     business_impact:         float = Field(..., ge=0, le=10)
     stakeholder_management:  float = Field(..., ge=0, le=10)
@@ -402,22 +400,23 @@ _SYS_CV_ANALYSIS = """
 You are an elite AI recruitment intelligence engine evaluating candidates for PROJECT MANAGER.
 You perform deep behavioral analysis — NOT keyword matching. Infer real PM capability from evidence.
 
-Score each of the 11 dimensions (0–10 float):
+Score each of the 10 dimensions (0–10 float):
 
-1. seriousness            — Is the candidate treating this interview seriously? Penalize heavily: joke answers, one-word responses, off-topic rambling, laughing through questions, refusal to engage, or clear lack of preparation. High score = candidate is focused, respectful, and genuinely attempting to answer. Low score = candidate is dismissive, flippant, or not taking the process seriously.
-2. delivery_ownership     — Ownership verbs (led, drove, executed, launched, coordinated). Initiative and execution responsibility.
-3. business_impact        — Quantified outcomes ONLY. %, revenue, time saved, KPI gains. "Improved workflows" with no number = low score.
-4. stakeholder_management — Cross-functional coordination, executive communication, vendor management, multi-team alignment.
-5. leadership_signals     — Strategic thinking, prioritization, decision ownership, navigating ambiguity, directing teams.
-6. communication_clarity  — Clear, concise, specific writing. Penalize buzzwords, fluff, generic claims.
-7. technical_fluency      — PM tools (Jira, MS Project, Asana, Confluence) and methodologies (Agile, Scrum, PMP, PRINCE2).
-8. evidence_credibility   — Only trust claims with context + scale + outcome. Weak claim = low score.
-9. strategic_thinking     — Roadmap thinking, business alignment, prioritization frameworks, cross-dept vision.
-10. pm_readiness           — Overall readiness: experience level + trajectory + role-specific maturity combined.
-11. authenticity_confidence — Detect red flags: keyword stuffing, title inflation (2 yrs exp + "enterprise transformation leader"), tool dumping, unrealistic claims.
+1. delivery_ownership     — Ownership verbs (led, drove, executed, launched, coordinated). Initiative and execution responsibility.
+2. business_impact        — Quantified outcomes ONLY. %, revenue, time saved, KPI gains. "Improved workflows" with no number = low score.
+3. stakeholder_management — Cross-functional coordination, executive communication, vendor management, multi-team alignment.
+4. leadership_signals     — Strategic thinking, prioritization, decision ownership, navigating ambiguity, directing teams.
+5. communication_clarity  — Clear, concise, specific writing. Penalize buzzwords, fluff, generic claims.
+6. technical_fluency      — PM tools (Jira, MS Project, Asana, Confluence) and methodologies (Agile, Scrum, PMP, PRINCE2).
+7. evidence_credibility   — Only trust claims with context + scale + outcome. Weak claim = low score.
+8. strategic_thinking     — Roadmap thinking, business alignment, prioritization frameworks, cross-dept vision.
+9. pm_readiness           — Overall readiness: experience level + trajectory + role-specific maturity combined.
+10. authenticity_confidence — Detect red flags: keyword stuffing, title inflation (2 yrs exp + "enterprise transformation leader"), tool dumping, unrealistic claims.
 
 Risk flag values (use these exact snake_case strings):
-keyword_stuffing | title_inflation | experience_mismatch | vague_impact | tool_dumping | career_instability | seniority_inconsistency
+keyword_stuffing | title_inflation | experience_mismatch | vague_impact | tool_dumping | career_instability | seniority_inconsistency | not_serious
+
+not_serious: raise this flag if the candidate is clearly not taking the process seriously — joke answers, one-word responses, refusal to engage, or obvious lack of preparation. This flag triggers a heavy score penalty.
 
 resume_features (used by an independent statistical baseline — be PRECISE):
   - years_experience: sum of years across the candidate's professional roles. Infer from job dates if not stated.
@@ -461,7 +460,8 @@ Scoring rubric:
 rationale: reference specific parts of the answer.
 follow_up_needed: true if answer was shallow or vague.
 follow_up_question: probing follow-up question if follow_up_needed, else null.
-flags: list of red flag strings if any.
+flags: list of red flag strings if any. Include "not_serious" if the candidate gave a joke answer,
+  one-word response, laughed through the question, went off-topic, or clearly wasn't attempting to answer.
 """.strip()
 
 _SYS_FINALIZE = """
@@ -750,7 +750,9 @@ def score_answer_node(state: InterviewState) -> dict:
         "questions_asked":     state.get("questions_asked", []) + [qa_pair],
         "dimensions_covered":  state.get("dimensions_covered", []) + [q.get("dimension", "")],
         "interview_plan":      new_plan,
-        "risk_flags":          state.get("risk_flags", []) + result.flags + delivery_flags,
+        "risk_flags":          list(dict.fromkeys(
+            state.get("risk_flags", []) + result.flags + delivery_flags
+        )),
         "current_question":    None,
         "current_answer_audio": None,
         "interview_phase":     "questioning" if new_plan else "done",
@@ -777,12 +779,24 @@ def finalize_node(state: InterviewState) -> dict:
 
     llm_weighted  = _weighted_score(merged)
     formula_score = state.get("formula_score")
+
+    deduped_flags = list(dict.fromkeys(state.get("risk_flags", [])))
+
+    # not_serious flag — disqualifying: zero behavioral score, ignore CV baseline
+    not_serious = "not_serious" in deduped_flags
+    if not_serious:
+        llm_weighted = 0.0
+
     # Blend formula (rubric-grounded baseline) with LLM (behavioral) — 50/50
     if formula_score is not None:
-        overall = round(0.85 * formula_score + 0.15 * llm_weighted, 1)
+        overall = round(0.50 * formula_score + 0.50 * llm_weighted, 1)
     else:
         overall = llm_weighted
     overall = max(0.0, min(100.0, overall))
+
+    # Hard cap — good CV cannot save an unserious candidate
+    if not_serious:
+        overall = min(overall, 30.0)
 
     if overall >= 75:
         recommendation = "Recommend"
@@ -791,7 +805,9 @@ def finalize_node(state: InterviewState) -> dict:
     else:
         recommendation = "Do Not Recommend"
 
-    deduped_flags = list(dict.fromkeys(state.get("risk_flags", [])))
+    # Force Do Not Recommend for unserious candidates regardless of score
+    if not_serious:
+        recommendation = "Do Not Recommend"
 
     user_msg = (
         f"CANDIDATE: {meta.get('Candidate Name', 'Unknown')} | "
@@ -838,6 +854,9 @@ def finalize_node(state: InterviewState) -> dict:
     )
     communication = round(merged.get("communication_clarity", 5) * 10, 1)
     uncertainty   = round((1.0 - float(narrative.confidence_score)) * 100, 1)
+    # not_serious → maximum uncertainty regardless of LLM confidence reading
+    if not_serious:
+        uncertainty = 100
 
     _supabase_upsert("candidates", {
         "candidate_id":               state["candidate_id"],
