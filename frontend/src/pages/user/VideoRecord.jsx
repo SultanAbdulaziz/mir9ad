@@ -2,12 +2,14 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Video, Square, Send, AlertCircle, Mic, Loader2 } from 'lucide-react'
 
-const THINK_SECONDS  = 30   // reading / processing time before recording
-const RECORD_SECONDS = 30   // max recording time
+const THINK_SECONDS  = 30
+const RECORD_SECONDS = 30
 
+// Video MIME for preview
 const VIDEO_MIME = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4']
   .find(m => MediaRecorder.isTypeSupported(m)) || ''
 
+// Audio MIME sent to backend (as per CLAUDE.md: audio/webm)
 const AUDIO_MIME = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg']
   .find(m => MediaRecorder.isTypeSupported(m)) || 'audio/webm'
 
@@ -26,6 +28,14 @@ async function blobToBase64(blob) {
   return btoa(binary)
 }
 
+/**
+ * Props:
+ *   question  — { question_id, question, dimension, type }
+ *   progress  — { answered, total_planned }
+ *   onSubmit  — async (answer: string, audio_b64: string, audio_mime: string) => void
+ *               answer is always "" — backend transcribes from audio via Gemini
+ *   disabled  — true while parent awaits backend response
+ */
 export default function VideoRecord({ question, progress, onSubmit, disabled = false }) {
   const { t } = useTranslation()
 
@@ -38,23 +48,21 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
   const audioChunksRef   = useRef([])
   const thinkTimerRef    = useRef(null)
   const recordTimerRef   = useRef(null)
-  const speechRef        = useRef(null)
 
   // phases: idle | thinking | recording | preview
   const [phase,        setPhase]        = useState('idle')
   const [thinkElapsed, setThinkElapsed] = useState(0)
   const [recElapsed,   setRecElapsed]   = useState(0)
-  const [transcript,   setTranscript]   = useState('')
   const [audioBlob,    setAudioBlob]    = useState(null)
   const [error,        setError]        = useState('')
 
-  const thinkRemaining  = THINK_SECONDS  - thinkElapsed
-  const recRemaining    = RECORD_SECONDS - recElapsed
-  const recPct          = (recElapsed / RECORD_SECONDS) * 100
-  const totalQ          = progress?.total_planned ?? '?'
-  const answeredQ       = progress?.answered ?? 0
+  const thinkRemaining = THINK_SECONDS  - thinkElapsed
+  const recRemaining   = RECORD_SECONDS - recElapsed
+  const recPct         = (recElapsed / RECORD_SECONDS) * 100
+  const totalQ         = progress?.total_planned ?? '?'
+  const answeredQ      = progress?.answered ?? 0
 
-  // ── camera (only called ONCE on first question) ────────────────────────────
+  // ── camera — asked only ONCE ─────────────────────────────────────────────
   const startCamera = useCallback(async () => {
     setError('')
     try {
@@ -67,10 +75,9 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
     }
   }, [t])
 
-  // ── think timer — auto-starts recording when it expires ───────────────────
+  // ── think timer — auto-starts recording when it expires ──────────────────
   useEffect(() => {
     if (phase !== 'thinking') return
-    // attach stream to video element (stream stays alive between questions)
     if (liveRef.current && streamRef.current) {
       liveRef.current.srcObject = streamRef.current
       liveRef.current.play().catch(() => {})
@@ -88,22 +95,7 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
     return () => clearInterval(thinkTimerRef.current)
   }, [phase]) // eslint-disable-line react-hooks/exhaustive-deps
 
-  // ── speech recognition ────────────────────────────────────────────────────
-  function startSpeech() {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SR) return
-    const sr = new SR()
-    sr.continuous     = true
-    sr.interimResults = false
-    sr.lang = document.documentElement.lang === 'ar' ? 'ar-SA' : 'en-US'
-    sr.onresult = (e) =>
-      setTranscript(Array.from(e.results).map(r => r[0].transcript).join(' '))
-    sr.start()
-    speechRef.current = sr
-  }
-  function stopSpeech() { try { speechRef.current?.stop() } catch {} speechRef.current = null }
-
-  // ── dual recording ────────────────────────────────────────────────────────
+  // ── dual recording ───────────────────────────────────────────────────────
   function startRecording() {
     clearInterval(thinkTimerRef.current)
     const stream = streamRef.current
@@ -111,11 +103,12 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
 
     videoChunksRef.current = []
     audioChunksRef.current = []
-    setTranscript('')
 
+    // Video recorder — for preview only
     const videoRec = new MediaRecorder(stream, { mimeType: VIDEO_MIME })
     videoRec.ondataavailable = (e) => { if (e.data.size > 0) videoChunksRef.current.push(e.data) }
 
+    // Audio-only recorder — sent to backend as per CLAUDE.md
     const audioStream = new MediaStream(stream.getAudioTracks())
     const audioRec    = new MediaRecorder(audioStream, { mimeType: AUDIO_MIME })
     audioRec.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
@@ -130,7 +123,6 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
         previewRef.current.src = URL.createObjectURL(vBlob)
         previewRef.current.load()
       }
-      stopSpeech()
       setPhase('preview')
     }
     videoRec.onstop = () => { vDone = true; onBothDone() }
@@ -153,7 +145,6 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
       })
     }, 1000)
 
-    startSpeech()
     setPhase('recording')
   }
 
@@ -163,41 +154,39 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
     audioRecorderRef.current?.stop()
   }
 
-  // ── submit ────────────────────────────────────────────────────────────────
+  // ── submit — answer is "" backend transcribes from audio via Gemini ──────
   async function handleSubmit() {
-    if (!transcript.trim()) { setError(t('user.record.errors.noTranscript')); return }
-    const audio_b64  = audioBlob ? await blobToBase64(audioBlob) : ''
-    await onSubmit?.(transcript.trim(), audio_b64, AUDIO_MIME)
+    if (!audioBlob) return
+    const audio_b64 = await blobToBase64(audioBlob)
+    // answer sent as "" — backend uses audio_b64 for Gemini transcription + scoring
+    await onSubmit?.('', audio_b64, 'audio/webm')
   }
 
-  // ── cleanup on unmount — only here do we stop the stream ─────────────────
+  // ── cleanup on unmount only ───────────────────────────────────────────────
   useEffect(() => () => {
     streamRef.current?.getTracks().forEach(tr => tr.stop())
     streamRef.current = null
-    stopSpeech()
     clearInterval(thinkTimerRef.current)
     clearInterval(recordTimerRef.current)
   }, [])
 
-  // ── reset on new question — reuse stream, skip camera prompt ─────────────
+  // ── reset on new question — reuse stream, never ask camera again ─────────
   useEffect(() => {
     if (!question?.question_id) return
     clearInterval(thinkTimerRef.current)
     clearInterval(recordTimerRef.current)
     setThinkElapsed(0)
     setRecElapsed(0)
-    setTranscript('')
     setAudioBlob(null)
     setError('')
     if (previewRef.current) previewRef.current.src = ''
-    // If camera already granted → go straight to thinking; else wait for user
     setPhase(streamRef.current ? 'thinking' : 'idle')
   }, [question?.question_id])
 
   return (
     <div className="w-full max-w-xl flex flex-col gap-6 animate-fade-in-up">
 
-      {/* Question card + think countdown */}
+      {/* Question card */}
       <div className="rounded-2xl border border-white/10 bg-zinc-900/90 px-6 py-5">
         <div className="flex items-center justify-between mb-3">
           <p className="text-[10px] font-semibold tracking-widest uppercase text-zinc-500">
@@ -217,7 +206,6 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
         <p className="text-base font-medium text-white leading-relaxed">
           {question?.question ?? t('user.record.noQuestion')}
         </p>
-        {/* Think time progress bar */}
         {phase === 'thinking' && (
           <div className="mt-4 h-0.5 bg-white/10 rounded-full overflow-hidden">
             <div className="h-full bg-white/40 transition-all duration-1000 rounded-full"
@@ -229,7 +217,7 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
       {/* Camera / preview */}
       <div className="relative rounded-2xl border border-white/10 bg-black overflow-hidden aspect-video">
 
-        {/* Idle — only shown before first camera grant */}
+        {/* Idle — first load only */}
         {phase === 'idle' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
             <div className="flex items-center justify-center w-16 h-16 rounded-2xl border border-white/10 bg-zinc-900/90 text-zinc-500">
@@ -239,7 +227,7 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
           </div>
         )}
 
-        {/* Live (thinking + recording) */}
+        {/* Live — thinking + recording */}
         <video ref={liveRef} muted playsInline aria-label="Camera preview"
           className={['absolute inset-0 w-full h-full object-cover transition-opacity duration-300',
             phase === 'thinking' || phase === 'recording' ? 'opacity-100' : 'opacity-0 pointer-events-none'].join(' ')} />
@@ -251,10 +239,15 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
 
         {/* Thinking overlay */}
         {phase === 'thinking' && (
-          <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/70 backdrop-blur-sm border border-white/10">
-            <span className="text-xs text-zinc-300">{t('user.record.thinkingLabel')}</span>
-            <span className="text-xs font-mono text-white tabular-nums">{fmt(thinkRemaining)}</span>
-          </div>
+          <>
+            <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/70 backdrop-blur-sm border border-white/10">
+              <span className="text-xs text-zinc-300">{t('user.record.thinkingLabel')}</span>
+              <span className="text-xs font-mono text-white tabular-nums">{fmt(thinkRemaining)}</span>
+            </div>
+            <div className="absolute top-4 right-4 flex items-center justify-center w-8 h-8 rounded-full bg-black/60 border border-white/10 text-zinc-400">
+              <Mic size={14} aria-hidden="true" />
+            </div>
+          </>
         )}
 
         {/* Recording HUD */}
@@ -278,30 +271,7 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
             )}
           </>
         )}
-
-        {phase === 'thinking' && (
-          <div className="absolute top-4 right-4 flex items-center justify-center w-8 h-8 rounded-full bg-black/60 border border-white/10 text-zinc-400">
-            <Mic size={14} aria-hidden="true" />
-          </div>
-        )}
       </div>
-
-      {/* Editable transcript after recording */}
-      {phase === 'preview' && (
-        <div className="flex flex-col gap-2">
-          <label htmlFor="transcript" className="text-[10px] font-semibold tracking-widest uppercase text-zinc-500">
-            {t('user.record.transcriptLabel')}
-          </label>
-          <textarea
-            id="transcript"
-            value={transcript}
-            onChange={(e) => setTranscript(e.target.value)}
-            rows={4}
-            placeholder={t('user.record.transcriptPlaceholder')}
-            className="w-full rounded-xl border border-white/10 bg-zinc-900/90 text-sm text-white placeholder:text-zinc-600 px-4 py-3 resize-none outline-none focus:border-white/30 transition-colors duration-150 leading-relaxed"
-          />
-        </div>
-      )}
 
       {/* Error */}
       {error && (
@@ -323,7 +293,7 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
           </button>
         )}
 
-        {/* Thinking — skip think time and record now */}
+        {/* Thinking — skip think time */}
         {phase === 'thinking' && (
           <button onClick={startRecording}
             className="flex-1 h-12 rounded-full border border-white/20 bg-zinc-900/90 text-white text-sm font-semibold tracking-tight hover:bg-white/10 active:scale-[0.98] transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 cursor-pointer flex items-center justify-center gap-2">
@@ -341,11 +311,10 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
           </button>
         )}
 
-        {/* Preview — submit only (no re-record) */}
+        {/* Preview — submit directly, no transcript needed */}
         {phase === 'preview' && (
-          <button onClick={handleSubmit}
-            disabled={disabled || !transcript.trim()}
-            aria-disabled={disabled || !transcript.trim()}
+          <button onClick={handleSubmit} disabled={disabled || !audioBlob}
+            aria-disabled={disabled || !audioBlob}
             className="flex-1 h-12 rounded-full bg-white text-black text-sm font-semibold tracking-tight hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(255,255,255,0.2)] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 cursor-pointer flex items-center justify-center gap-2">
             {disabled
               ? <Loader2 size={14} className="animate-spin" aria-hidden="true" />

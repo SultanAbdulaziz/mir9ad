@@ -555,6 +555,25 @@ def ask_question_node(state: InterviewState) -> dict:
         audio_b64    = payload.get("audio_b64")
         audio_mime   = payload.get("audio_mime", "audio/webm")
         audio_state  = {"b64": audio_b64, "mime": audio_mime} if audio_b64 else None
+
+        # Transcribe audio → text when no answer text was provided
+        if not answer_text.strip() and audio_b64:
+            import base64
+            from google.genai import types as gtypes
+            client = _get_gemini()
+            if client is not None:
+                try:
+                    audio_bytes = base64.b64decode(audio_b64)
+                    resp = client.models.generate_content(
+                        model=_GEMINI_MODEL,
+                        contents=[
+                            gtypes.Part.from_bytes(data=audio_bytes, mime_type=audio_mime),
+                            "Transcribe this audio exactly as spoken. Return only the transcript text, nothing else.",
+                        ],
+                    )
+                    answer_text = (resp.text or "").strip()
+                except Exception as exc:
+                    print(f"[transcription failed: {exc}]", file=sys.stderr)
     else:
         answer_text  = str(payload)
         audio_state  = None
