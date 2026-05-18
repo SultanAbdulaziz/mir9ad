@@ -225,7 +225,10 @@ if _STATIC.exists():
 
     @app.get("/{full_path:path}", include_in_schema=False)
     def serve_spa(full_path: str) -> FileResponse:
-        # Safety net: never serve HTML for known API paths
         if any(full_path.startswith(p) for p in _API_PREFIXES):
             raise HTTPException(status_code=404, detail="Not found")
+        # Serve real files (favicon.svg, icons.svg, etc.) if they exist
+        candidate = _STATIC / full_path
+        if candidate.exists() and candidate.is_file():
+            return FileResponse(candidate)
         return FileResponse(_STATIC / "index.html")

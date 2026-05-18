@@ -225,7 +225,7 @@ function CandidateDetail({ c, onDelete }) {
               {/* Score sparkline */}
               <div className="flex flex-col gap-1">
                 <p className="text-[10px] text-zinc-600">Answer score progression (0–10)</p>
-                <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-12 overflow-visible">
+                <svg viewBox={`0 0 ${W} ${H + 10}`} className="w-full h-14 overflow-visible">
                   {/* Grid lines at 0, 5, 10 */}
                   {[0, 5, 10].map(v => {
                     const y = pad + innerH - (v / 10) * innerH
@@ -235,22 +235,19 @@ function CandidateDetail({ c, onDelete }) {
                   {scores.length > 1 && (
                     <polyline points={polyline} fill="none" stroke="rgba(255,255,255,0.4)" strokeWidth="1.5" strokeLinejoin="round" strokeLinecap="round" />
                   )}
-                  {/* Dots + score labels */}
+                  {/* Dots, score labels and Q labels — all in SVG so x positions are exact */}
                   {pts.map(([x, y], i) => (
                     <g key={i}>
                       <circle cx={x} cy={y} r="3" fill="white" />
                       <text x={x} y={y - 6} textAnchor="middle" fontSize="8" fill="rgba(255,255,255,0.6)" fontFamily="monospace">
                         {scores[i].toFixed(1)}
                       </text>
+                      <text x={x} y={H + 2} textAnchor="middle" fontSize="8" fill="rgba(255,255,255,0.25)" fontFamily="monospace">
+                        Q{i + 1}
+                      </text>
                     </g>
                   ))}
                 </svg>
-                {/* Q labels */}
-                <div className="flex justify-between px-2">
-                  {scores.map((_, i) => (
-                    <span key={i} className="text-[9px] text-zinc-600 font-mono">Q{i + 1}</span>
-                  ))}
-                </div>
               </div>
 
               <div className="border-t border-white/[0.05]" />
