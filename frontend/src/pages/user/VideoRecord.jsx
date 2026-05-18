@@ -1,185 +1,235 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { useTranslation } from 'react-i18next'
-import { Video, Square, RotateCcw, Send, AlertCircle, Mic, Loader2 } from 'lucide-react'
+import { Video, Square, Send, AlertCircle, Mic, Loader2 } from 'lucide-react'
 
-const MAX_SECONDS = 30
+const THINK_SECONDS  = 30   // reading / processing time before recording
+const RECORD_SECONDS = 30   // max recording time
 
-const MIME = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4']
+const VIDEO_MIME = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4']
   .find(m => MediaRecorder.isTypeSupported(m)) || ''
 
+const AUDIO_MIME = ['audio/webm;codecs=opus', 'audio/webm', 'audio/ogg']
+  .find(m => MediaRecorder.isTypeSupported(m)) || 'audio/webm'
+
 function fmt(s) {
-  const m   = String(Math.floor(s / 60)).padStart(2, '0')
-  const sec = String(s % 60).padStart(2, '0')
-  return `${m}:${sec}`
+  return `${String(Math.floor(s / 60)).padStart(2,'0')}:${String(s % 60).padStart(2,'0')}`
 }
 
+// Chunked base64 — safe for large audio blobs (avoids stack overflow)
 async function blobToBase64(blob) {
   const buffer = await blob.arrayBuffer()
   const bytes  = new Uint8Array(buffer)
+  const CHUNK  = 8192
   let binary   = ''
-  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i])
+  for (let i = 0; i < bytes.length; i += CHUNK)
+    binary += String.fromCharCode(...bytes.subarray(i, i + CHUNK))
   return btoa(binary)
 }
 
-/**
- * Props:
- *   question    — { question_id, question, dimension, type }
- *   progress    — { answered, total_planned }
- *   onSubmit    — async (answer: string, audio_b64: string, audio_mime: string) => void
- *   disabled    — true while parent is awaiting backend response
- */
 export default function VideoRecord({ question, progress, onSubmit, disabled = false }) {
   const { t } = useTranslation()
 
-  const liveRef     = useRef(null)
-  const previewRef  = useRef(null)
-  const streamRef   = useRef(null)
-  const recorderRef = useRef(null)
-  const chunksRef   = useRef([])
-  const timerRef    = useRef(null)
-  const speechRef   = useRef(null)
+  const liveRef          = useRef(null)
+  const previewRef       = useRef(null)
+  const streamRef        = useRef(null)      // kept alive across ALL questions
+  const videoRecorderRef = useRef(null)
+  const audioRecorderRef = useRef(null)
+  const videoChunksRef   = useRef([])
+  const audioChunksRef   = useRef([])
+  const thinkTimerRef    = useRef(null)
+  const recordTimerRef   = useRef(null)
+  const speechRef        = useRef(null)
 
-  const [phase,      setPhase]      = useState('idle')       // idle|live|recording|preview
-  const [elapsed,    setElapsed]    = useState(0)
-  const [error,      setError]      = useState('')
-  const [transcript, setTranscript] = useState('')            // editable by user
-  const [audioBlob,  setAudioBlob]  = useState(null)
+  // phases: idle | thinking | recording | preview
+  const [phase,        setPhase]        = useState('idle')
+  const [thinkElapsed, setThinkElapsed] = useState(0)
+  const [recElapsed,   setRecElapsed]   = useState(0)
+  const [transcript,   setTranscript]   = useState('')
+  const [audioBlob,    setAudioBlob]    = useState(null)
+  const [error,        setError]        = useState('')
 
-  const remaining = MAX_SECONDS - elapsed
-  const pct       = (elapsed / MAX_SECONDS) * 100
+  const thinkRemaining  = THINK_SECONDS  - thinkElapsed
+  const recRemaining    = RECORD_SECONDS - recElapsed
+  const recPct          = (recElapsed / RECORD_SECONDS) * 100
+  const totalQ          = progress?.total_planned ?? '?'
+  const answeredQ       = progress?.answered ?? 0
 
-  // ── camera ──────────────────────────────────────────────────────────────────
+  // ── camera (only called ONCE on first question) ────────────────────────────
   const startCamera = useCallback(async () => {
     setError('')
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true })
       streamRef.current = stream
       if (liveRef.current) { liveRef.current.srcObject = stream; liveRef.current.play() }
-      setPhase('live')
+      setPhase('thinking')
     } catch {
       setError(t('user.record.errors.permission'))
     }
   }, [t])
 
-  function stopStream() {
-    streamRef.current?.getTracks().forEach(tr => tr.stop())
-    streamRef.current = null
-  }
-
-  // ── speech recognition (best-effort, Chrome/Edge) ──────────────────────────
-  function startSpeechRecognition() {
-    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
-    if (!SR) return
-    const sr = new SR()
-    sr.continuous       = true
-    sr.interimResults   = false
-    sr.lang             = document.documentElement.lang === 'ar' ? 'ar-SA' : 'en-US'
-    sr.onresult = (e) => {
-      const text = Array.from(e.results).map(r => r[0].transcript).join(' ')
-      setTranscript(text)
+  // ── think timer — auto-starts recording when it expires ───────────────────
+  useEffect(() => {
+    if (phase !== 'thinking') return
+    // attach stream to video element (stream stays alive between questions)
+    if (liveRef.current && streamRef.current) {
+      liveRef.current.srcObject = streamRef.current
+      liveRef.current.play().catch(() => {})
     }
-    sr.start()
-    speechRef.current = sr
-  }
-
-  function stopSpeechRecognition() {
-    try { speechRef.current?.stop() } catch {}
-    speechRef.current = null
-  }
-
-  // ── recording ───────────────────────────────────────────────────────────────
-  function startRecording() {
-    if (!streamRef.current) return
-    chunksRef.current = []
-    setTranscript('')
-    const rec = new MediaRecorder(streamRef.current, { mimeType: MIME })
-    rec.ondataavailable = (e) => { if (e.data.size > 0) chunksRef.current.push(e.data) }
-    rec.onstop = () => {
-      const blob = new Blob(chunksRef.current, { type: MIME || 'video/webm' })
-      setAudioBlob(blob)
-      if (previewRef.current) {
-        previewRef.current.src = URL.createObjectURL(blob)
-        previewRef.current.load()
-      }
-      stopStream()
-      stopSpeechRecognition()
-      setPhase('preview')
-    }
-    rec.start(250)
-    recorderRef.current = rec
-    setElapsed(0)
-    timerRef.current = setInterval(() => {
-      setElapsed(s => {
-        if (s + 1 >= MAX_SECONDS) {
-          clearInterval(timerRef.current)
-          recorderRef.current?.stop()
+    thinkTimerRef.current = setInterval(() => {
+      setThinkElapsed(s => {
+        if (s + 1 >= THINK_SECONDS) {
+          clearInterval(thinkTimerRef.current)
+          startRecording()
+          return THINK_SECONDS
         }
         return s + 1
       })
     }, 1000)
-    startSpeechRecognition()
+    return () => clearInterval(thinkTimerRef.current)
+  }, [phase]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── speech recognition ────────────────────────────────────────────────────
+  function startSpeech() {
+    const SR = window.SpeechRecognition || window.webkitSpeechRecognition
+    if (!SR) return
+    const sr = new SR()
+    sr.continuous     = true
+    sr.interimResults = false
+    sr.lang = document.documentElement.lang === 'ar' ? 'ar-SA' : 'en-US'
+    sr.onresult = (e) =>
+      setTranscript(Array.from(e.results).map(r => r[0].transcript).join(' '))
+    sr.start()
+    speechRef.current = sr
+  }
+  function stopSpeech() { try { speechRef.current?.stop() } catch {} speechRef.current = null }
+
+  // ── dual recording ────────────────────────────────────────────────────────
+  function startRecording() {
+    clearInterval(thinkTimerRef.current)
+    const stream = streamRef.current
+    if (!stream) return
+
+    videoChunksRef.current = []
+    audioChunksRef.current = []
+    setTranscript('')
+
+    const videoRec = new MediaRecorder(stream, { mimeType: VIDEO_MIME })
+    videoRec.ondataavailable = (e) => { if (e.data.size > 0) videoChunksRef.current.push(e.data) }
+
+    const audioStream = new MediaStream(stream.getAudioTracks())
+    const audioRec    = new MediaRecorder(audioStream, { mimeType: AUDIO_MIME })
+    audioRec.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
+
+    let vDone = false, aDone = false
+    function onBothDone() {
+      if (!vDone || !aDone) return
+      const aBlob = new Blob(audioChunksRef.current, { type: AUDIO_MIME })
+      const vBlob = new Blob(videoChunksRef.current, { type: VIDEO_MIME || 'video/webm' })
+      setAudioBlob(aBlob)
+      if (previewRef.current) {
+        previewRef.current.src = URL.createObjectURL(vBlob)
+        previewRef.current.load()
+      }
+      stopSpeech()
+      setPhase('preview')
+    }
+    videoRec.onstop = () => { vDone = true; onBothDone() }
+    audioRec.onstop = () => { aDone = true; onBothDone() }
+
+    videoRec.start(250)
+    audioRec.start(250)
+    videoRecorderRef.current = videoRec
+    audioRecorderRef.current = audioRec
+
+    setRecElapsed(0)
+    recordTimerRef.current = setInterval(() => {
+      setRecElapsed(s => {
+        if (s + 1 >= RECORD_SECONDS) {
+          clearInterval(recordTimerRef.current)
+          videoRecorderRef.current?.stop()
+          audioRecorderRef.current?.stop()
+        }
+        return s + 1
+      })
+    }, 1000)
+
+    startSpeech()
     setPhase('recording')
   }
 
   function stopRecording() {
-    clearInterval(timerRef.current)
-    recorderRef.current?.stop()
+    clearInterval(recordTimerRef.current)
+    videoRecorderRef.current?.stop()
+    audioRecorderRef.current?.stop()
   }
 
-  async function reRecord() {
-    setElapsed(0)
-    setAudioBlob(null)
-    setTranscript('')
-    if (previewRef.current) previewRef.current.src = ''
-    await startCamera()
-  }
-
-  // ── submit ───────────────────────────────────────────────────────────────────
+  // ── submit ────────────────────────────────────────────────────────────────
   async function handleSubmit() {
     if (!transcript.trim()) { setError(t('user.record.errors.noTranscript')); return }
     const audio_b64  = audioBlob ? await blobToBase64(audioBlob) : ''
-    const audio_mime = audioBlob?.type || 'audio/webm'
-    await onSubmit?.(transcript.trim(), audio_b64, audio_mime)
+    await onSubmit?.(transcript.trim(), audio_b64, AUDIO_MIME)
   }
 
-  useEffect(() => () => { stopStream(); stopSpeechRecognition(); clearInterval(timerRef.current) }, [])
+  // ── cleanup on unmount — only here do we stop the stream ─────────────────
+  useEffect(() => () => {
+    streamRef.current?.getTracks().forEach(tr => tr.stop())
+    streamRef.current = null
+    stopSpeech()
+    clearInterval(thinkTimerRef.current)
+    clearInterval(recordTimerRef.current)
+  }, [])
 
-  // Reset to idle when question changes (new question arrived)
+  // ── reset on new question — reuse stream, skip camera prompt ─────────────
   useEffect(() => {
-    setPhase('idle')
-    setElapsed(0)
+    if (!question?.question_id) return
+    clearInterval(thinkTimerRef.current)
+    clearInterval(recordTimerRef.current)
+    setThinkElapsed(0)
+    setRecElapsed(0)
     setTranscript('')
     setAudioBlob(null)
     setError('')
     if (previewRef.current) previewRef.current.src = ''
-    stopStream()
+    // If camera already granted → go straight to thinking; else wait for user
+    setPhase(streamRef.current ? 'thinking' : 'idle')
   }, [question?.question_id])
-
-  const totalQ    = progress?.total_planned ?? '?'
-  const answeredQ = progress?.answered ?? 0
 
   return (
     <div className="w-full max-w-xl flex flex-col gap-6 animate-fade-in-up">
 
-      {/* Question card */}
+      {/* Question card + think countdown */}
       <div className="rounded-2xl border border-white/10 bg-zinc-900/90 px-6 py-5">
         <div className="flex items-center justify-between mb-3">
           <p className="text-[10px] font-semibold tracking-widest uppercase text-zinc-500">
             {t('user.record.questionLabel')}
           </p>
-          <span className="text-[10px] font-mono text-zinc-600 tabular-nums">
-            {answeredQ + 1} / {totalQ}
-          </span>
+          <div className="flex items-center gap-3">
+            {phase === 'thinking' && (
+              <span className="text-[10px] font-mono text-zinc-500 tabular-nums">
+                {t('user.record.thinkTime')} {fmt(thinkRemaining)}
+              </span>
+            )}
+            <span className="text-[10px] font-mono text-zinc-600 tabular-nums">
+              {answeredQ + 1} / {totalQ}
+            </span>
+          </div>
         </div>
         <p className="text-base font-medium text-white leading-relaxed">
           {question?.question ?? t('user.record.noQuestion')}
         </p>
+        {/* Think time progress bar */}
+        {phase === 'thinking' && (
+          <div className="mt-4 h-0.5 bg-white/10 rounded-full overflow-hidden">
+            <div className="h-full bg-white/40 transition-all duration-1000 rounded-full"
+              style={{ width: `${((THINK_SECONDS - thinkElapsed) / THINK_SECONDS) * 100}%` }} />
+          </div>
+        )}
       </div>
 
       {/* Camera / preview */}
       <div className="relative rounded-2xl border border-white/10 bg-black overflow-hidden aspect-video">
 
-        {/* Idle */}
+        {/* Idle — only shown before first camera grant */}
         {phase === 'idle' && (
           <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
             <div className="flex items-center justify-center w-16 h-16 rounded-2xl border border-white/10 bg-zinc-900/90 text-zinc-500">
@@ -189,46 +239,54 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
           </div>
         )}
 
-        {/* Live */}
+        {/* Live (thinking + recording) */}
         <video ref={liveRef} muted playsInline aria-label="Camera preview"
           className={['absolute inset-0 w-full h-full object-cover transition-opacity duration-300',
-            phase === 'live' || phase === 'recording' ? 'opacity-100' : 'opacity-0 pointer-events-none'].join(' ')} />
+            phase === 'thinking' || phase === 'recording' ? 'opacity-100' : 'opacity-0 pointer-events-none'].join(' ')} />
 
         {/* Playback */}
         <video ref={previewRef} controls playsInline aria-label={t('user.record.preview')}
           className={['absolute inset-0 w-full h-full object-cover transition-opacity duration-300',
             phase === 'preview' ? 'opacity-100' : 'opacity-0 pointer-events-none'].join(' ')} />
 
+        {/* Thinking overlay */}
+        {phase === 'thinking' && (
+          <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/70 backdrop-blur-sm border border-white/10">
+            <span className="text-xs text-zinc-300">{t('user.record.thinkingLabel')}</span>
+            <span className="text-xs font-mono text-white tabular-nums">{fmt(thinkRemaining)}</span>
+          </div>
+        )}
+
         {/* Recording HUD */}
         {phase === 'recording' && (
           <>
             <div className="absolute top-4 left-4 flex items-center gap-2 px-3 py-1.5 rounded-full bg-black/70 backdrop-blur-sm border border-white/10">
               <span className="w-2 h-2 rounded-full bg-red-500 animate-pulse" aria-hidden="true" />
-              <span className="text-xs font-mono text-white tabular-nums">{fmt(elapsed)}</span>
+              <span className="text-xs font-mono text-white tabular-nums">{fmt(recElapsed)}</span>
               <span className="text-xs text-zinc-400">{t('user.record.recording')}</span>
             </div>
             <div className="absolute bottom-0 inset-x-0">
-              <div className={['h-1 transition-all duration-1000', remaining <= 5 ? 'bg-red-500' : 'bg-white/60'].join(' ')}
-                style={{ width: `${pct}%` }}
-                role="progressbar" aria-valuenow={elapsed} aria-valuemax={MAX_SECONDS}
-                aria-label={`${remaining}s remaining`} />
+              <div className={['h-1 transition-all duration-1000', recRemaining <= 5 ? 'bg-red-500' : 'bg-white/60'].join(' ')}
+                style={{ width: `${recPct}%` }}
+                role="progressbar" aria-valuenow={recElapsed} aria-valuemax={RECORD_SECONDS}
+                aria-label={`${recRemaining}s remaining`} />
             </div>
-            {remaining <= 5 && (
+            {recRemaining <= 5 && (
               <div className="absolute top-4 right-4 px-2 py-1 rounded-lg bg-black/70 backdrop-blur-sm">
-                <span className="text-xs font-mono text-red-400 tabular-nums">:{String(remaining).padStart(2,'0')}</span>
+                <span className="text-xs font-mono text-red-400 tabular-nums">:{String(recRemaining).padStart(2,'0')}</span>
               </div>
             )}
           </>
         )}
 
-        {phase === 'live' && (
+        {phase === 'thinking' && (
           <div className="absolute top-4 right-4 flex items-center justify-center w-8 h-8 rounded-full bg-black/60 border border-white/10 text-zinc-400">
             <Mic size={14} aria-hidden="true" />
           </div>
         )}
       </div>
 
-      {/* Transcript — editable after recording */}
+      {/* Editable transcript after recording */}
       {phase === 'preview' && (
         <div className="flex flex-col gap-2">
           <label htmlFor="transcript" className="text-[10px] font-semibold tracking-widest uppercase text-zinc-500">
@@ -254,23 +312,27 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
       )}
 
       {/* Actions */}
-      <div className="flex flex-col sm:flex-row gap-3">
+      <div className="flex gap-3">
+
+        {/* First load — request camera once */}
         {phase === 'idle' && (
           <button onClick={startCamera}
             className="flex-1 h-12 rounded-full bg-white text-black text-sm font-semibold tracking-tight hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(255,255,255,0.2)] active:scale-[0.98] transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 cursor-pointer flex items-center justify-center gap-2">
             <Video size={16} aria-hidden="true" />
-            {t('user.record.startRecording')}
+            {t('user.record.allow')}
           </button>
         )}
 
-        {phase === 'live' && (
+        {/* Thinking — skip think time and record now */}
+        {phase === 'thinking' && (
           <button onClick={startRecording}
-            className="flex-1 h-12 rounded-full bg-white text-black text-sm font-semibold tracking-tight hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(255,255,255,0.2)] active:scale-[0.98] transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 cursor-pointer flex items-center justify-center gap-2">
+            className="flex-1 h-12 rounded-full border border-white/20 bg-zinc-900/90 text-white text-sm font-semibold tracking-tight hover:bg-white/10 active:scale-[0.98] transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 cursor-pointer flex items-center justify-center gap-2">
             <span className="w-2.5 h-2.5 rounded-full bg-red-500" aria-hidden="true" />
-            {t('user.record.startRecording')}
+            {t('user.record.startNow')}
           </button>
         )}
 
+        {/* Recording — stop early */}
         {phase === 'recording' && (
           <button onClick={stopRecording}
             className="flex-1 h-12 rounded-full border border-white/20 bg-zinc-800/90 text-white text-sm font-semibold tracking-tight hover:bg-white/10 active:scale-[0.98] transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 cursor-pointer flex items-center justify-center gap-2">
@@ -279,21 +341,17 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
           </button>
         )}
 
+        {/* Preview — submit only (no re-record) */}
         {phase === 'preview' && (
-          <>
-            <button onClick={reRecord}
-              className="flex-1 h-12 rounded-full border border-white/10 bg-zinc-900/90 text-zinc-300 text-sm font-medium tracking-tight hover:bg-white/10 hover:text-white active:scale-[0.98] transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30 cursor-pointer flex items-center justify-center gap-2">
-              <RotateCcw size={14} aria-hidden="true" />
-              {t('user.record.reRecord')}
-            </button>
-            <button onClick={handleSubmit} disabled={disabled || !transcript.trim()} aria-disabled={disabled || !transcript.trim()}
-              className="flex-1 h-12 rounded-full bg-white text-black text-sm font-semibold tracking-tight hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(255,255,255,0.2)] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 cursor-pointer flex items-center justify-center gap-2">
-              {disabled
-                ? <Loader2 size={14} className="animate-spin" aria-hidden="true" />
-                : <Send size={14} aria-hidden="true" />}
-              {disabled ? t('user.record.submitting') : t('user.record.submit')}
-            </button>
-          </>
+          <button onClick={handleSubmit}
+            disabled={disabled || !transcript.trim()}
+            aria-disabled={disabled || !transcript.trim()}
+            className="flex-1 h-12 rounded-full bg-white text-black text-sm font-semibold tracking-tight hover:scale-[1.02] hover:shadow-[0_0_20px_rgba(255,255,255,0.2)] active:scale-[0.98] disabled:opacity-40 disabled:cursor-not-allowed disabled:hover:scale-100 disabled:hover:shadow-none transition-all duration-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/40 cursor-pointer flex items-center justify-center gap-2">
+            {disabled
+              ? <Loader2 size={14} className="animate-spin" aria-hidden="true" />
+              : <Send size={14} aria-hidden="true" />}
+            {disabled ? t('user.record.submitting') : t('user.record.submit')}
+          </button>
         )}
       </div>
     </div>

@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { Check, Languages, CheckCircle2 } from 'lucide-react'
 import ResumeUpload from './ResumeUpload'
@@ -15,13 +15,25 @@ const API = 'http://localhost:8000'
 /**
  * POST /interviews
  * Upload PDF → returns InterviewSnapshot (interview_id + first question)
+ * candidate_name is optional (defaults to "Candidate" on backend)
  */
-async function startInterview(file) {
+async function startInterview(file, candidateName = '') {
   const form = new FormData()
   form.append('resume', file, file.name)
+  if (candidateName) form.append('candidate_name', candidateName)
   const res = await fetch(`${API}/interviews`, { method: 'POST', body: form })
   if (!res.ok) throw new Error(`Failed to start interview: ${res.status}`)
-  return res.json()   // InterviewSnapshot
+  return res.json()
+}
+
+/**
+ * GET /interviews/{id}
+ * Reconnect after page refresh — returns current InterviewSnapshot
+ */
+async function reconnect(interviewId) {
+  const res = await fetch(`${API}/interviews/${interviewId}`)
+  if (!res.ok) throw new Error(`Reconnect failed: ${res.status}`)
+  return res.json()
 }
 
 /**
@@ -36,15 +48,17 @@ async function submitAnswer(interviewId, answer, audio_b64, audio_mime) {
     body: JSON.stringify({ answer, audio_b64, audio_mime }),
   })
   if (!res.ok) throw new Error(`Failed to submit answer: ${res.status}`)
-  return res.json()   // InterviewSnapshot
+  return res.json()
 }
+
+const STORAGE_KEY = 'mir9ad_interview_id'
 
 // ── UI helpers ────────────────────────────────────────────────────────────────
 function StepBar({ current }) {
   const { t } = useTranslation()
   return (
-    <nav aria-label="Progress" className="w-full">
-      <ol role="list" className="flex items-start justify-center gap-0">
+    <nav aria-label="Progress" className="w-full flex justify-center">
+      <ol role="list" className="flex items-start gap-0">
         {STEPS.map((step, idx) => {
           const done   = idx < current
           const active = idx === current
@@ -109,12 +123,32 @@ export default function UserPage() {
 
   const stepKey = STEP_KEYS[step]
 
+  // Reconnect on page refresh if a session was in progress
+  useEffect(() => {
+    const saved = localStorage.getItem(STORAGE_KEY)
+    if (!saved) return
+    reconnect(saved)
+      .then(snapshot => {
+        if (snapshot.status === 'complete') {
+          setEvaluation(snapshot.evaluation)
+          setStep(2)
+        } else if (snapshot.status === 'in_progress') {
+          setInterviewId(snapshot.interview_id)
+          setQuestion(snapshot.current_question)
+          setProgress(snapshot.progress)
+          setStep(1)
+        }
+      })
+      .catch(() => localStorage.removeItem(STORAGE_KEY))
+  }, [])
+
   // Step 0 → 1: upload PDF, get interview_id + first question
   async function handleCVUploaded(file) {
     setCvLoading(true)
     setCvError('')
     try {
       const snapshot = await startInterview(file)
+      localStorage.setItem(STORAGE_KEY, snapshot.interview_id)
       setInterviewId(snapshot.interview_id)
       setQuestion(snapshot.current_question)
       setProgress(snapshot.progress)
@@ -136,6 +170,7 @@ export default function UserPage() {
 
       if (snapshot.status === 'complete') {
         setEvaluation(snapshot.evaluation)
+        localStorage.removeItem(STORAGE_KEY)
         setStep(2)
       } else {
         setQuestion(snapshot.current_question)
@@ -163,9 +198,7 @@ export default function UserPage() {
       </header>
 
       <main className="flex-1 flex flex-col items-center px-4 pt-32 pb-16 gap-12 relative z-10">
-        <div className="flex justify-center w-full">
-          <StepBar current={step} />
-        </div>
+        <StepBar current={step} />
 
         {/* Heading */}
         <div className="text-center max-w-md animate-fade-in-up">
