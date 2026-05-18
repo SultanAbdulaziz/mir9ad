@@ -42,11 +42,11 @@ async function reconnect(interviewId) {
  * Submit one answer → returns next InterviewSnapshot
  * When snapshot.status === 'complete', snapshot.evaluation is populated
  */
-async function submitAnswer(interviewId, audio_b64, audio_mime) {
+async function submitAnswer(interviewId, audio_b64, audio_mime, video_b64, video_mime) {
   const res = await fetch(`${API}/interviews/${interviewId}/answer`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ audio_b64, audio_mime }),
+    body: JSON.stringify({ audio_b64, audio_mime, video_b64, video_mime }),
   })
   if (!res.ok) throw new Error(`Failed to submit answer: ${res.status}`)
   return res.json()
@@ -197,11 +197,11 @@ export default function UserPage() {
   }
 
   // Step 1: submit one answer, get next question or evaluation
-  async function handleAnswer(audio_b64, audio_mime) {
+  async function handleAnswer(audio_b64, audio_mime, video_b64, video_mime) {
     setAnswering(true)
     setAnswerError('')
     try {
-      const snapshot = await submitAnswer(interviewId, audio_b64, audio_mime)
+      const snapshot = await submitAnswer(interviewId, audio_b64, audio_mime, video_b64, video_mime)
       setProgress(snapshot.progress)
 
       if (snapshot.status === 'complete') {

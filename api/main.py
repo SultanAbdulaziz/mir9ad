@@ -145,6 +145,8 @@ def post_answer(interview_id: str, req: schemas.AnswerRequest) -> dict:
             interview_id=interview_id,
             audio_b64=req.audio_b64,
             audio_mime=req.audio_mime,
+            video_b64=req.video_b64,
+            video_mime=req.video_mime,
         )
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Could not submit answer: {exc}")

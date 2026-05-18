@@ -10,6 +10,8 @@ from pydantic import BaseModel, Field
 class AnswerRequest(BaseModel):
     audio_b64:  Optional[str] = Field(None, description="Base64-encoded audio — backend transcribes via Gemini")
     audio_mime: str           = Field("audio/webm", description="MIME type of audio_b64")
+    video_b64:  Optional[str] = Field(None, description="Base64-encoded 30s video blob for body language scoring")
+    video_mime: str           = Field("video/webm", description="MIME type of video_b64")
 
 
 # ── Sub-shapes ─────────────────────────────────────────────────────────────────

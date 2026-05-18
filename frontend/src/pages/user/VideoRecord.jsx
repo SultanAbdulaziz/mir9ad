@@ -54,6 +54,7 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
   const [thinkElapsed, setThinkElapsed] = useState(0)
   const [recElapsed,   setRecElapsed]   = useState(0)
   const [audioBlob,    setAudioBlob]    = useState(null)
+  const [videoBlob,    setVideoBlob]    = useState(null)
   const [error,        setError]        = useState('')
 
   const thinkRemaining = THINK_SECONDS  - thinkElapsed
@@ -119,6 +120,7 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
       const aBlob = new Blob(audioChunksRef.current, { type: AUDIO_MIME })
       const vBlob = new Blob(videoChunksRef.current, { type: VIDEO_MIME || 'video/webm' })
       setAudioBlob(aBlob)
+      setVideoBlob(vBlob)
       if (previewRef.current) {
         previewRef.current.src = URL.createObjectURL(vBlob)
         previewRef.current.load()
@@ -154,11 +156,12 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
     audioRecorderRef.current?.stop()
   }
 
-  // ── submit — backend transcribes from audio_b64 via Gemini ──────────────
+  // ── submit — audio transcribed by Gemini; video scored for body language ─
   async function handleSubmit() {
     if (!audioBlob) return
     const audio_b64 = await blobToBase64(audioBlob)
-    await onSubmit?.(audio_b64, 'audio/webm')
+    const video_b64 = videoBlob ? await blobToBase64(videoBlob) : null
+    await onSubmit?.(audio_b64, AUDIO_MIME, video_b64, VIDEO_MIME || 'video/webm')
   }
 
   // ── cleanup on unmount only ───────────────────────────────────────────────
@@ -177,6 +180,7 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
     setThinkElapsed(0)
     setRecElapsed(0)
     setAudioBlob(null)
+    setVideoBlob(null)
     setError('')
     if (previewRef.current) previewRef.current.src = ''
     setPhase(streamRef.current ? 'thinking' : 'idle')

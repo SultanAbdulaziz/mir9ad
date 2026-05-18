@@ -247,6 +247,7 @@ class InterviewState(TypedDict):
     interview_phase:      str
     current_question:     Optional[dict]
     current_answer_audio: Optional[dict]   # transient: {'b64': str, 'mime': str} for the answer in flight
+    current_answer_video: Optional[dict]   # transient: {'b64': str, 'mime': str} for body language scoring
     questions_asked:      list
     dimensions_covered:   list
     interview_plan:       list              # remaining slots: 'general:GQ-XXX' | 'personalized'
@@ -337,6 +338,17 @@ class DeliveryScore(BaseModel):
     notes:     str                    = Field(default="", description="One-sentence observation about delivery")
 
 
+class BodyLanguageScore(BaseModel):
+    score:             float     = Field(..., ge=0, le=10, description="Holistic 0-10 body language quality")
+    eye_contact:       float     = Field(..., ge=0, le=10, description="Camera gaze vs. looking away / reading notes")
+    posture:           float     = Field(..., ge=0, le=10, description="Upright/engaged vs. slouched/closed")
+    gesture_fluency:   float     = Field(..., ge=0, le=10, description="Natural supporting gestures vs. fidgeting or rigid stillness")
+    facial_engagement: float     = Field(..., ge=0, le=10, description="Expressiveness vs. flat/blank affect")
+    composure:         float     = Field(..., ge=0, le=10, description="Physical calm vs. nervous tells")
+    flags:             list[str] = Field(default_factory=list, description="reading_from_notes | poor_eye_contact | fidgeting | rigid | engaged | composed | nervous | expressive")
+    notes:             str       = Field(default="", description="One-sentence observation about body language")
+
+
 class FinalEvaluationNarrative(BaseModel):
     """Only the narrative fields — computed scores are injected after."""
     confidence_score:    float       = Field(..., ge=0.0, le=1.0)
@@ -398,6 +410,59 @@ def score_delivery_from_audio(audio_bytes: bytes, mime_type: str = "audio/webm")
     except Exception as exc:
         print(f"[delivery scoring failed: {exc}]", file=sys.stderr)
         return None
+
+
+# ── Body language scoring prompt (video-only path) ────────────────────────────
+_BODY_LANGUAGE_PROMPT = """
+You are scoring the BODY LANGUAGE of a Project Manager interview answer from a video recording.
+Score only what you observe visually — ignore audio content entirely.
+
+Dimensions (0-10):
+- eye_contact:       Is the candidate looking at the camera? Penalize frequent look-aways or visible note-reading.
+- posture:           Upright and open = 10. Slouched, turned away, or visibly closed-off = low.
+- gesture_fluency:   Natural hand gestures that support speech = high. Fidgeting, tapping, rigid stillness = low.
+- facial_engagement: Appropriate expressiveness and affect. Blank or flat face = low. Engaged and natural = high.
+- composure:         Physical calm under pressure. Nervous tells (touching face, shifting seat, hair adjusting) = low.
+
+Overall `score` = holistic 0-10 read of body language quality.
+
+Flags (snake_case, only include what you actually observe):
+reading_from_notes | poor_eye_contact | fidgeting | rigid | engaged | composed | nervous | expressive
+
+`notes`: one sentence. Describe only visible behavior, not content judgment.
+""".strip()
+
+
+def score_body_language_from_video(video_bytes: bytes, mime_type: str = "video/webm") -> Optional[dict]:
+    """
+    Score body language from a candidate's 30s video response.
+    Returns BodyLanguageScore dict, or None if Gemini is unavailable or call fails.
+    """
+    client = _get_gemini()
+    if client is None:
+        return None
+
+    from google.genai import types as gtypes
+
+    try:
+        response = client.models.generate_content(
+            model=_GEMINI_FLASH,
+            contents=[
+                gtypes.Part.from_bytes(data=video_bytes, mime_type=mime_type),
+                _BODY_LANGUAGE_PROMPT,
+            ],
+            config=gtypes.GenerateContentConfig(
+                response_mime_type="application/json",
+                response_schema=BodyLanguageScore,
+                temperature=0.0,
+            ),
+        )
+        raw = response.text or "{}"
+        return BodyLanguageScore(**json.loads(raw)).model_dump()
+    except Exception as exc:
+        print(f"[body language scoring failed: {exc}]", file=sys.stderr)
+        return None
+
 
 # ── Prompts ────────────────────────────────────────────────────────────────────
 _SYS_CV_ANALYSIS = """
@@ -693,7 +758,10 @@ def ask_question_node(state: InterviewState) -> dict:
     if isinstance(payload, dict):
         audio_b64   = payload.get("audio_b64")
         audio_mime  = payload.get("audio_mime", "audio/webm")
+        video_b64   = payload.get("video_b64")
+        video_mime  = payload.get("video_mime", "video/webm")
         audio_state = {"b64": audio_b64, "mime": audio_mime} if audio_b64 else None
+        video_state = {"b64": video_b64, "mime": video_mime} if video_b64 else None
         answer_text = ""
 
         # Transcribe audio → text via Gemini
@@ -717,10 +785,12 @@ def ask_question_node(state: InterviewState) -> dict:
     else:
         answer_text  = str(payload)
         audio_state  = None
+        video_state  = None
 
     return {
         "interview_phase":      "scoring",
         "current_answer_audio": audio_state,
+        "current_answer_video": video_state,
         "messages": [
             AIMessage(content=f"Interviewer: {q['question']}"),
             HumanMessage(content=answer_text),
@@ -758,40 +828,59 @@ def score_answer_node(state: InterviewState) -> dict:
         except Exception as exc:
             print(f"[audio decode failed: {exc}]", file=sys.stderr)
 
-    # ── Blend: 70% content + 30% delivery (only if delivery available) ───────
-    if delivery is not None:
-        final_score = round(0.7 * content_score + 0.3 * float(delivery["score"]), 2)
+    # ── Body language score (video-based, optional) ───────────────────────────
+    body_language: Optional[dict] = None
+    video_state = state.get("current_answer_video")
+    if video_state and video_state.get("b64"):
+        import base64
+        try:
+            video_bytes   = base64.b64decode(video_state["b64"])
+            body_language = score_body_language_from_video(video_bytes, video_state.get("mime", "video/webm"))
+        except Exception as exc:
+            print(f"[video decode failed: {exc}]", file=sys.stderr)
+
+    # ── Three-way blend ───────────────────────────────────────────────────────
+    if delivery is not None and body_language is not None:
+        final_score = round(0.60 * content_score + 0.25 * float(delivery["score"]) + 0.15 * float(body_language["score"]), 2)
+    elif delivery is not None:
+        final_score = round(0.70 * content_score + 0.30 * float(delivery["score"]), 2)
+    elif body_language is not None:
+        final_score = round(0.75 * content_score + 0.25 * float(body_language["score"]), 2)
     else:
         final_score = round(content_score, 2)
 
     qa_pair = {
-        "question_id":      q.get("question_id", ""),
-        "dimension":        q.get("dimension", ""),
-        "question":         q.get("question", ""),
-        "type":             q.get("type", "personalized"),
-        "answer":           answer,
-        "answer_score":     final_score,
-        "content_score":    round(content_score, 2),
-        "delivery_score":   delivery["score"] if delivery else None,
-        "delivery_detail":  delivery,
-        "follow_up":        result.follow_up_question if result.follow_up_needed else None,
-        "follow_up_answer": None,
+        "question_id":           q.get("question_id", ""),
+        "dimension":             q.get("dimension", ""),
+        "question":              q.get("question", ""),
+        "type":                  q.get("type", "personalized"),
+        "answer":                answer,
+        "answer_score":          final_score,
+        "content_score":         round(content_score, 2),
+        "delivery_score":        delivery["score"] if delivery else None,
+        "delivery_detail":       delivery,
+        "body_language_score":   body_language["score"] if body_language else None,
+        "body_language_detail":  body_language,
+        "follow_up":             result.follow_up_question if result.follow_up_needed else None,
+        "follow_up_answer":      None,
     }
 
     new_plan = state.get("interview_plan", [])[1:]  # pop the slot we just answered
 
-    delivery_flags = delivery.get("flags", []) if delivery else []
+    delivery_flags      = delivery.get("flags", [])      if delivery      else []
+    body_language_flags = body_language.get("flags", []) if body_language else []
 
     return {
-        "questions_asked":     state.get("questions_asked", []) + [qa_pair],
-        "dimensions_covered":  state.get("dimensions_covered", []) + [q.get("dimension", "")],
-        "interview_plan":      new_plan,
-        "risk_flags":          list(dict.fromkeys(
-            state.get("risk_flags", []) + result.flags + delivery_flags
+        "questions_asked":      state.get("questions_asked", []) + [qa_pair],
+        "dimensions_covered":   state.get("dimensions_covered", []) + [q.get("dimension", "")],
+        "interview_plan":       new_plan,
+        "risk_flags":           list(dict.fromkeys(
+            state.get("risk_flags", []) + result.flags + delivery_flags + body_language_flags
         )),
-        "current_question":    None,
+        "current_question":     None,
         "current_answer_audio": None,
-        "interview_phase":     "questioning" if new_plan else "done",
+        "current_answer_video": None,
+        "interview_phase":      "questioning" if new_plan else "done",
     }
 
 
@@ -983,6 +1072,7 @@ def _initial_state(interview_id: str, interview_mode: bool = True) -> InterviewS
         "interview_phase":      "cv_analysis",
         "current_question":     None,
         "current_answer_audio": None,
+        "current_answer_video": None,
         "questions_asked":      [],
         "dimensions_covered":   [],
         "interview_plan":       [],
@@ -1058,8 +1148,10 @@ def start_interview(
 
 def submit_answer(
     interview_id: str,
-    audio_b64: Optional[str] = None,
+    audio_b64:  Optional[str] = None,
     audio_mime: str = "audio/webm",
+    video_b64:  Optional[str] = None,
+    video_mime: str = "video/webm",
 ) -> dict:
     """
     Resume an interrupted interview. Backend transcribes audio via Gemini.
@@ -1070,6 +1162,9 @@ def submit_answer(
     if audio_b64:
         payload["audio_b64"]  = audio_b64
         payload["audio_mime"] = audio_mime
+    if video_b64:
+        payload["video_b64"]  = video_b64
+        payload["video_mime"] = video_mime
     graph.invoke(Command(resume=payload), config)
     return _snapshot_response(interview_id)
 
