@@ -1,13 +1,9 @@
 {
   "user": {
-    "steps": {
-      "upload": "Upload Resume",
-      "record": "Record Answer",
-      "results": "Results"
-    },
+    "steps": { "upload": "Upload Resume", "record": "Record Answer", "results": "Results" },
     "upload": {
       "heading": "Upload Your Resume",
-      "subheading": "We'll use it to tailor your interview questions.",
+      "subheading": "We'll analyse your CV and prepare tailored interview questions.",
       "dropzone": "Drag & drop your resume here",
       "or": "or",
       "browse": "Browse file",
@@ -22,31 +18,34 @@
     },
     "record": {
       "heading": "Answer the Questions",
-      "subheading": "You have 30 seconds per question. Re-record as needed before moving on.",
+      "subheading": "You have 30 seconds per question. Re-record as needed.",
       "questionLabel": "Question",
       "noQuestion": "No question provided.",
       "allow": "Allow camera & microphone access to start.",
       "startRecording": "Start Recording",
       "stopRecording": "Stop",
       "reRecord": "Re-record",
-      "nextQuestion": "Next Question",
-      "submit": "Submit All",
-      "submitting": "Uploading…",
+      "submit": "Submit Answer",
+      "submitting": "Submitting…",
       "recording": "Recording…",
       "preview": "Your recording",
+      "transcriptLabel": "Your Answer",
+      "transcriptPlaceholder": "Type or correct your answer here…",
       "errors": {
-        "permission": "Camera or microphone access was denied. Please allow access in your browser settings."
+        "permission": "Camera or microphone access was denied. Please allow access in your browser settings.",
+        "noTranscript": "Please type your answer before submitting."
       }
     },
     "results": {
       "heading": "You're all done.",
       "subheading": "We'll get back to you soon.",
-      "body": "Our team will review your answers and resume carefully. Expect to hear from us within 2–3 business days.",
-      "tag": "Submitted successfully"
+      "body": "Our team will review your answers carefully. Expect to hear from us within 2–3 business days.",
+      "tag": "Submitted successfully",
+      "overallScore": "Overall Fit Score",
+      "recommendation": "Recommendation",
+      "strengths": "Strongest Signals",
+      "weaknesses": "Areas to Improve"
     }
   },
-  "nav": {
-    "langName": "English",
-    "switchTo": "العربية"
-  }
+  "nav": { "langName": "English", "switchTo": "العربية" }
 }

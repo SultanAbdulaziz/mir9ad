@@ -1,0 +1,4 @@
+#!/bin/bash
+concurrently --names "api,ui" --prefix-colors "cyan,magenta" \
+  "uvicorn api.main:app --reload --host 0.0.0.0 --port 8000" \
+  "npm run dev --prefix frontend"
