@@ -87,6 +87,8 @@
     },
     "recommendations": {
       "Recommend":                                  "يُوصى به",
+      "Recommend with Reservations":                "يُوصى به مع تحفظات",
+      "Do Not Recommend":                           "لا يُوصى به",
       "Maybe / needs further assessment":           "ربما / يحتاج تقييماً إضافياً",
       "Do not recommend":                           "لا يُوصى به",
       "Conditional / requires follow-up interview": "مشروط / يحتاج مقابلة متابعة"

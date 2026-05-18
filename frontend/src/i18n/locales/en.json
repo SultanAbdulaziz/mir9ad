@@ -87,6 +87,8 @@
     },
     "recommendations": {
       "Recommend":                                  "Recommend",
+      "Recommend with Reservations":                "Recommend with Reservations",
+      "Do Not Recommend":                           "Do Not Recommend",
       "Maybe / needs further assessment":           "Maybe / needs further assessment",
       "Do not recommend":                           "Do not recommend",
       "Conditional / requires follow-up interview": "Conditional / follow-up needed"

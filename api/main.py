@@ -221,7 +221,7 @@ _STATIC = Path(__file__).parent.parent / "static"
 if _STATIC.exists():
     app.mount("/assets", StaticFiles(directory=_STATIC / "assets"), name="assets")
 
-    _API_PREFIXES = ("interviews", "admin", "healthz")
+    _API_PREFIXES = ("interviews", "admin/", "healthz")
 
     @app.get("/{full_path:path}", include_in_schema=False)
     def serve_spa(full_path: str) -> FileResponse:

@@ -198,41 +198,41 @@ function CandidateDetail({ c, onDelete }) {
           </div>
         )}
 
-        {/* Interview Q&A log */}
-        {c.interview_qa && c.interview_qa.length > 0 && (
-          <div className="rounded-xl border border-white/10 bg-zinc-900/90 px-5 py-4 space-y-5">
-            <p className="text-[10px] uppercase tracking-widest text-zinc-400">{t('admin.sections.interviewLog')}</p>
-            {c.interview_qa.map((qa, i) => (
-              <div key={i} className="flex flex-col gap-2">
-                {/* Question */}
-                <div className="flex items-start gap-2">
-                  <span className="text-[10px] font-mono text-zinc-600 shrink-0 mt-0.5">Q{i + 1}</span>
-                  <p className="text-xs text-zinc-400 leading-relaxed">{qa.question}</p>
+        {/* Interview Q&A log — parse whether stored as string or array */}
+        {(() => {
+          let qa = c.interview_qa
+          if (typeof qa === 'string') { try { qa = JSON.parse(qa) } catch { qa = [] } }
+          if (!Array.isArray(qa) || qa.length === 0) return null
+          return (
+            <div className="rounded-xl border border-white/10 bg-zinc-900/90 px-5 py-4 space-y-5">
+              <p className="text-[10px] uppercase tracking-widest text-zinc-400">{t('admin.sections.interviewLog')}</p>
+              {qa.map((item, i) => (
+                <div key={i} className="flex flex-col gap-2">
+                  <div className="flex items-start gap-2">
+                    <span className="text-[10px] font-mono text-zinc-600 shrink-0 mt-0.5">Q{i + 1}</span>
+                    <p className="text-xs text-zinc-400 leading-relaxed">{item.question}</p>
+                  </div>
+                  <div className="flex items-start gap-2 pl-4">
+                    <span className="text-[10px] font-mono text-zinc-600 shrink-0 mt-0.5">A</span>
+                    <p className="text-xs text-white leading-relaxed">{item.answer || '—'}</p>
+                  </div>
+                  <div className="flex items-center gap-3 pl-4">
+                    <span className="text-[10px] text-zinc-600">Score</span>
+                    <span className="text-[10px] font-mono text-white tabular-nums">{item.answer_score ?? item.content_score ?? '—'}</span>
+                    {item.delivery_score != null && (
+                      <>
+                        <span className="text-[10px] text-zinc-600">Delivery</span>
+                        <span className="text-[10px] font-mono text-white tabular-nums">{item.delivery_score}</span>
+                      </>
+                    )}
+                    <span className="text-[10px] text-zinc-600 ml-auto">{item.dimension?.replace(/_/g, ' ')}</span>
+                  </div>
+                  {i < qa.length - 1 && <div className="border-t border-white/[0.05] pt-1" aria-hidden="true" />}
                 </div>
-                {/* Answer */}
-                <div className="flex items-start gap-2 pl-4">
-                  <span className="text-[10px] font-mono text-zinc-600 shrink-0 mt-0.5">A</span>
-                  <p className="text-xs text-white leading-relaxed">{qa.answer || '—'}</p>
-                </div>
-                {/* Scores */}
-                <div className="flex items-center gap-3 pl-4">
-                  <span className="text-[10px] text-zinc-600">Score</span>
-                  <span className="text-[10px] font-mono text-white tabular-nums">{qa.answer_score ?? qa.content_score ?? '—'}</span>
-                  {qa.delivery_score != null && (
-                    <>
-                      <span className="text-[10px] text-zinc-600">Delivery</span>
-                      <span className="text-[10px] font-mono text-white tabular-nums">{qa.delivery_score}</span>
-                    </>
-                  )}
-                  <span className="text-[10px] text-zinc-600 ml-auto">{qa.dimension?.replace(/_/g, ' ')}</span>
-                </div>
-                {i < c.interview_qa.length - 1 && (
-                  <div className="border-t border-white/[0.05] pt-1" aria-hidden="true" />
-                )}
-              </div>
-            ))}
-          </div>
-        )}
+              ))}
+            </div>
+          )
+        })()}
 
         {/* Candidate ID */}
         <p className="text-[10px] text-zinc-600 text-center pb-4">{c.candidate_id}</p>
