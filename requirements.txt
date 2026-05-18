@@ -3,9 +3,18 @@ numpy
 matplotlib
 seaborn
 openpyxl
+scikit-learn
 python-dotenv
 langchain-openai
 langgraph
-chromadb
 pydantic
 tqdm
+
+# Multimodal delivery scoring
+google-genai
+
+# API
+fastapi
+uvicorn[standard]
+python-multipart
+pypdf
