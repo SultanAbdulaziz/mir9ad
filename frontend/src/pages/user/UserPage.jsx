@@ -120,7 +120,7 @@ export default function UserPage() {
   const [interviewId, setInterviewId] = useState(null)
   const [question,    setQuestion]    = useState(null)   // current_question from backend
   const [progress,    setProgress]    = useState(null)   // { answered, total_planned }
-  const [evaluation,  setEvaluation]  = useState(null)   // final evaluation object
+  const [, setEvaluation] = useState(null)
   const [cvLoading,   setCvLoading]   = useState(false)
   const [cvError,     setCvError]     = useState('')
   const [answering,   setAnswering]   = useState(false)
@@ -287,50 +287,16 @@ export default function UserPage() {
         )}
 
         {/* Step 2 — results */}
-        {step === 2 && evaluation && (
-          <div className="flex flex-col items-center gap-6 w-full max-w-xl animate-fade-in-up">
+        {step === 2 && (
+          <div className="flex flex-col items-center gap-6 max-w-md text-center animate-fade-in-up">
             <div className="flex items-center justify-center w-20 h-20 rounded-full border border-white/10 bg-zinc-900/90">
               <CheckCircle2 size={36} className="text-white" aria-hidden="true" />
             </div>
-            <div className="text-center">
-              <p className="text-[10px] font-semibold tracking-widest uppercase text-zinc-500 mb-2">
+            <div>
+              <p className="text-[10px] font-semibold tracking-widest uppercase text-zinc-500 mb-4">
                 {t('user.results.tag')}
               </p>
               <p className="text-zinc-400 text-base leading-relaxed">{t('user.results.body')}</p>
-            </div>
-
-            {/* Score summary */}
-            <div className="w-full rounded-2xl border border-white/10 bg-zinc-900/90 px-6 py-5 flex flex-col gap-4">
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-zinc-400">{t('user.results.overallScore')}</span>
-                <span className="text-2xl font-bold text-white tabular-nums">
-                  {evaluation.overall_fit_score?.toFixed(1)}
-                </span>
-              </div>
-              <div className="flex items-center justify-between">
-                <span className="text-sm text-zinc-400">{t('user.results.recommendation')}</span>
-                <span className="text-sm font-semibold text-white">{evaluation.recommendation}</span>
-              </div>
-              {evaluation.strongest_signals?.length > 0 && (
-                <div>
-                  <p className="text-[10px] uppercase tracking-widest text-zinc-600 mb-2">{t('user.results.strengths')}</p>
-                  <ul className="space-y-1">
-                    {evaluation.strongest_signals.map((s, i) => (
-                      <li key={i} className="text-xs text-zinc-400">· {s}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-              {evaluation.weakest_signals?.length > 0 && (
-                <div>
-                  <p className="text-[10px] uppercase tracking-widest text-zinc-600 mb-2">{t('user.results.weaknesses')}</p>
-                  <ul className="space-y-1">
-                    {evaluation.weakest_signals.map((s, i) => (
-                      <li key={i} className="text-xs text-zinc-400">· {s}</li>
-                    ))}
-                  </ul>
-                </div>
-              )}
             </div>
           </div>
         )}

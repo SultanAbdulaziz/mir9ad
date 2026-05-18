@@ -216,20 +216,16 @@ def _num_personalized(
     formula_score: float,
     llm_weighted: float,
 ) -> int:
-    """1-5 personalized questions based on CV uncertainty signals."""
-    n = 1
-    n += min(len(risk_flags), 2)
-    n += min(sum(1 for s in dim_scores.values() if s < 6), 2)
-    if abs(formula_score - llm_weighted) > 15:
-        n += 1
-    return max(1, min(3, n)) #return max(1, min(4, n))
+    """Always 2 behavioural personalized questions + 1 skill_test (added separately)."""
+    return 2
 
 
 def _build_interview_plan(num_personalized: int) -> list[str]:
-    """Returns list like ['general:GQ-001', 'general:GQ-002', 'personalized', ..., 'general:GQ-020']."""
+    """Plan: general openings + 2 personalized + 1 skill_test + optional closing."""
     return (
         [f"general:{q}" for q in GENERAL_OPENING_IDS]
         + ["personalized"] * num_personalized
+        + ["skill_test"]
         + ([f"general:{GENERAL_CLOSING_ID}"] if GENERAL_CLOSING_ID else [])
     )
 
@@ -311,6 +307,14 @@ class QuestionSelection(BaseModel):
     question_id: str
     question:    str
     dimension:   str
+    rationale:   str
+
+
+class SkillTestSelection(BaseModel):
+    skill:       str   # the specific skill from the resume being tested
+    question_id: str   # use "ST-001"
+    question:    str   # the generated skill-probe question
+    dimension:   str   # typically "technical_fluency" or "evidence_credibility"
     rationale:   str
 
 
@@ -443,6 +447,28 @@ question_id: must be one of the Question IDs from the available questions list.
 question: adapt and personalize from the question bank using resume details.
 dimension: target dimension name in snake_case.
 rationale: why this question for this specific candidate.
+""".strip()
+
+_SYS_SKILL_TEST = """
+You are generating a targeted skill-probe question for a PM interview.
+
+Your task: pick ONE skill from the candidate's Core Skills list and write a scenario-based question
+that tests whether they can actually apply it — not just name it.
+
+Rules:
+- Pick a PM-relevant skill (e.g. Agile/Scrum, Risk management, Budget tracking, Stakeholder communication).
+  Avoid generic software tools like PowerPoint or Excel.
+- The question must reference the specific skill by name.
+- Frame it as a specific scenario or challenge, NOT a generic "tell me about a time you used X".
+  Example: "You listed Agile/Scrum — your team has just missed two consecutive sprint goals.
+  Walk me through how you would diagnose and fix the issue in your next sprint planning."
+- Keep it concise: one scenario, one clear ask.
+
+skill: the exact skill name as it appears in the resume.
+question_id: use "ST-001".
+question: the full question text.
+dimension: the scoring dimension (technical_fluency or evidence_credibility).
+rationale: why this skill is worth probing for this candidate.
 """.strip()
 
 _SYS_SCORE_ANSWER = """
@@ -607,6 +633,16 @@ def select_question_node(state: InterviewState) -> dict:
             }}
         # Fallback: question id missing from bank — degrade to personalized
         next_slot = "personalized"
+
+    # ── Skill-test slot: LLM picks a skill from resume and writes a probe ─────
+    if next_slot == "skill_test":
+        ef = (state.get("cv_metadata") or {})
+        skill_user_msg = (
+            f"CANDIDATE CORE SKILLS: {ef.get('Core Skills', state['resume_text'][:300])}\n\n"
+            f"RESUME EXCERPT (first 600 chars):\n{state['resume_text'][:600]}"
+        )
+        st_result = _gemini_structured(SkillTestSelection, _SYS_SKILL_TEST, skill_user_msg)
+        return {"current_question": {**st_result.model_dump(), "type": "skill_test"}}
 
     # ── Personalized slot: LLM picks + adapts from the bank ──────────────────
     scores    = state.get("cv_dimension_scores") or {}
