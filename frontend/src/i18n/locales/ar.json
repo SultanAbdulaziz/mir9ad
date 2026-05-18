@@ -65,7 +65,8 @@
       "weaknesses":        "نقاط الضعف",
       "cvProfile":         "ملف السيرة الذاتية",
       "experienceSummary": "ملخص الخبرة",
-      "edgeCase":          "حالة غير متوقعة"
+      "edgeCase":          "حالة غير متوقعة",
+      "interviewLog":      "سجل المقابلة"
     },
     "fields": {
       "fitScore":          "درجة الملاءمة",

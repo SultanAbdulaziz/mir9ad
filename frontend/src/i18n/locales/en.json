@@ -65,7 +65,8 @@
       "weaknesses":       "Weaknesses",
       "cvProfile":        "CV Profile",
       "experienceSummary":"Experience Summary",
-      "edgeCase":         "Surprise / Edge Case"
+      "edgeCase":         "Surprise / Edge Case",
+      "interviewLog":     "Interview Log"
     },
     "fields": {
       "fitScore":           "Fit Score",

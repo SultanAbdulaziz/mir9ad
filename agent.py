@@ -903,6 +903,7 @@ def finalize_node(state: InterviewState) -> dict:
         "final_recommendation":       recommendation,
         "strengths":                  "; ".join(narrative.strongest_signals),
         "weaknesses":                 "; ".join(narrative.weakest_signals),
+        "interview_qa":               json.dumps(qa_pairs, ensure_ascii=False),
     })
 
     # Also update expected_recommendation in cv_profiles now that we have it
