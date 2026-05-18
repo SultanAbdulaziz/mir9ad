@@ -217,7 +217,7 @@ def _num_personalized(
     n += min(sum(1 for s in dim_scores.values() if s < 6), 2)
     if abs(formula_score - llm_weighted) > 15:
         n += 1
-    return max(1, min(1, n))
+    return max(1, min(3, n)) #return max(1, min(4, n))
 
 
 def _build_interview_plan(num_personalized: int) -> list[str]:
@@ -413,10 +413,11 @@ keyword_stuffing | title_inflation | experience_mismatch | vague_impact | tool_d
 
 resume_features (used by an independent statistical baseline — be PRECISE):
   - years_experience: sum of years across the candidate's professional roles. Infer from job dates if not stated.
-  - num_skills: count of distinct core/professional skills under "Core Skills" or similar sections.
-                Do NOT count tools/software here. Exclude generic items like "basic communication".
+  - num_skills: count of ALL comma-separated items listed under "Core Skills" or similar sections.
+            Include everything listed there — including software and tools that appear in that section.
+            Only exclude "basic communication". Count exactly what is written, item by item.
   - num_tools:  count of distinct named software/platforms (Jira, Asana, MS Project, Excel, Confluence, etc.).
-
+  
 evidence_quotes: list of {dimension, quote} records — pull direct quotes from the resume backing your scores for delivery_ownership, business_impact, stakeholder_management, leadership_signals. One record per quote.
 behavioral_summary: 2–3 sentence behavioral profile of this specific candidate.
 trajectory_analysis: 1–2 sentence career progression insight.
@@ -545,10 +546,8 @@ def analyze_cv_node(state: InterviewState) -> dict:
         "experience_summary":      result.behavioral_summary,
         "expected_strengths":      "; ".join(q.quote for q in result.evidence_quotes[:3]),
         "expected_weaknesses":     "; ".join(result.risk_flags[:3]),
-        "surprise_edge_case":      "; ".join(result.risk_flags) if result.risk_flags else "",
         "expected_fit_score":      int(formula_score),
         "expected_recommendation": "",
-        "privacy_note":            "Synthetic CV profile; no real personal data.",
     })
 
     return {
@@ -637,13 +636,13 @@ def ask_question_node(state: InterviewState) -> dict:
     payload = interrupt({"question": q["question"]})
 
     if isinstance(payload, dict):
-        answer_text  = str(payload.get("text", ""))
-        audio_b64    = payload.get("audio_b64")
-        audio_mime   = payload.get("audio_mime", "audio/webm")
-        audio_state  = {"b64": audio_b64, "mime": audio_mime} if audio_b64 else None
+        audio_b64   = payload.get("audio_b64")
+        audio_mime  = payload.get("audio_mime", "audio/webm")
+        audio_state = {"b64": audio_b64, "mime": audio_mime} if audio_b64 else None
+        answer_text = ""
 
-        # Transcribe audio → text when no answer text was provided
-        if not answer_text.strip() and audio_b64:
+        # Transcribe audio → text via Gemini
+        if audio_b64:
             import base64
             from google.genai import types as gtypes
             client = _get_gemini()
@@ -761,7 +760,7 @@ def finalize_node(state: InterviewState) -> dict:
     formula_score = state.get("formula_score")
     # Blend formula (rubric-grounded baseline) with LLM (behavioral) — 50/50
     if formula_score is not None:
-        overall = round(0.5 * formula_score + 0.5 * llm_weighted, 1)
+        overall = round(0.85 * formula_score + 0.15 * llm_weighted, 1)
     else:
         overall = llm_weighted
     overall = max(0.0, min(100.0, overall))
@@ -984,16 +983,15 @@ def start_interview(
 
 def submit_answer(
     interview_id: str,
-    answer_text: str,
     audio_b64: Optional[str] = None,
     audio_mime: str = "audio/webm",
 ) -> dict:
     """
-    Resume an interrupted interview with the candidate's answer.
+    Resume an interrupted interview. Backend transcribes audio via Gemini.
     Returns snapshot response — either next question or final evaluation.
     """
     config  = {"configurable": {"thread_id": interview_id}}
-    payload: Any = {"text": answer_text}
+    payload: Any = {}
     if audio_b64:
         payload["audio_b64"]  = audio_b64
         payload["audio_mime"] = audio_mime

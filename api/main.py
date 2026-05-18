@@ -112,7 +112,6 @@ def post_answer(interview_id: str, req: schemas.AnswerRequest) -> dict:
     try:
         return agent.submit_answer(
             interview_id=interview_id,
-            answer_text=req.answer,
             audio_b64=req.audio_b64,
             audio_mime=req.audio_mime,
         )
@@ -162,18 +161,30 @@ def get_admin_candidates() -> list[dict]:
     candidates  = sb.table("candidates").select("*").execute().data or []
     cv_profiles = sb.table("cv_profiles").select("*").execute().data or []
 
-    # Full outer join on candidate_id — show every record from either table
+    # Inner join — only return candidates present in BOTH tables
     candidates_by_id = {c["candidate_id"]: c for c in candidates}
     profiles_by_id   = {p["candidate_id"]: p for p in cv_profiles}
 
-    all_ids = set(candidates_by_id) | set(profiles_by_id)
-    merged  = []
-    for cid in all_ids:
-        profile   = profiles_by_id.get(cid, {})
-        candidate = candidates_by_id.get(cid, {})
-        # cv_profiles provides the base; candidates scores overwrite on conflict
+    merged = []
+    for cid, candidate in candidates_by_id.items():
+        if cid not in profiles_by_id:
+            continue
+        profile = profiles_by_id[cid]
         merged.append({**profile, **candidate})
 
-    # Sort by fit_score descending so highest scores appear first
     merged.sort(key=lambda x: x.get("fit_score") or 0, reverse=True)
     return merged
+
+
+@app.delete("/admin/candidates/{candidate_id}", tags=["admin"])
+def delete_candidate(candidate_id: str) -> dict[str, str]:
+    """Delete a candidate from both DB tables."""
+    sb = agent._get_supabase()
+    if sb is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database not configured.",
+        )
+    sb.table("candidates").delete().eq("candidate_id", candidate_id).execute()
+    sb.table("cv_profiles").delete().eq("candidate_id", candidate_id).execute()
+    return {"candidate_id": candidate_id, "status": "deleted"}

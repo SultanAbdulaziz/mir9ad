@@ -24,13 +24,12 @@ const REC_ICON = {
 
 function ScoreBar({ value, max = 100 }) {
   const pct = Math.min(100, Math.max(0, (value / max) * 100))
-  const color = pct >= 80 ? 'bg-white' : pct >= 60 ? 'bg-zinc-400' : 'bg-zinc-600'
   return (
     <div className="flex items-center gap-3">
-      <div className="flex-1 h-1 bg-white/10 rounded-full overflow-hidden">
-        <div className={`h-full ${color} rounded-full transition-all duration-500`} style={{ width: `${pct}%` }} />
+      <div className="flex-1 h-1.5 bg-white/10 rounded-full overflow-hidden">
+        <div className="h-full bg-white rounded-full transition-all duration-500" style={{ width: `${pct}%` }} />
       </div>
-      <span className="text-xs font-mono tabular-nums text-zinc-400 w-8 text-right">{value}</span>
+      <span className="text-xs font-mono tabular-nums text-white w-8 text-right">{value}</span>
     </div>
   )
 }
@@ -53,23 +52,25 @@ function CandidateRow({ c, selected, onClick }) {
         <User size={16} className="text-zinc-500" aria-hidden="true" />
       </div>
       <div className="flex-1 min-w-0">
-        <p className="text-sm font-medium text-white truncate">{c.candidate_name}</p>
-        <p className="text-xs text-zinc-500 truncate">
+        <p className="text-sm font-semibold text-white truncate">{c.candidate_name}</p>
+        <p className="text-xs text-zinc-400 truncate">
           {c.role} · {t('admin.yearsExp', { count: c.years_experience })}
         </p>
       </div>
       <div className="flex items-center gap-2 shrink-0">
         <span className="text-sm font-bold tabular-nums text-white">{c.fit_score}</span>
         <RecIcon size={14} className={color} aria-hidden="true" />
-        <ChevronRight size={14} className="text-zinc-700" aria-hidden="true" />
+        <ChevronRight size={14} className="text-zinc-500" aria-hidden="true" />
       </div>
     </button>
   )
 }
 
 // ── candidate detail panel ────────────────────────────────────────────────────
-function CandidateDetail({ c, onClose }) {
+function CandidateDetail({ c, onDelete }) {
   const { t } = useTranslation()
+  const [confirm,   setConfirm]   = useState(false)
+  const [deleting,  setDeleting]  = useState(false)
   const { icon: RecIcon, color: recColor } = REC_ICON[c.final_recommendation] ?? { icon: MinusCircle, color: 'text-zinc-500' }
 
   const scores = [
@@ -79,28 +80,51 @@ function CandidateDetail({ c, onClose }) {
     { label: t('admin.fields.uncertaintyRisk'), icon: AlertTriangle, value: c.uncertainty_and_risk_score },
   ]
 
+  async function handleDelete() {
+    setDeleting(true)
+    try {
+      await fetch(`${API}/admin/candidates/${c.candidate_id}`, { method: 'DELETE' })
+      onDelete?.(c.candidate_id)
+    } finally {
+      setDeleting(false)
+      setConfirm(false)
+    }
+  }
+
   return (
     <div className="flex flex-col h-full overflow-y-auto">
       {/* Header */}
       <div className="flex items-start justify-between px-6 pt-6 pb-4 border-b border-white/[0.06] shrink-0">
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center w-11 h-11 rounded-full border border-white/10 bg-zinc-900/90">
-            <User size={20} className="text-zinc-400" aria-hidden="true" />
+            <User size={20} className="text-zinc-300" aria-hidden="true" />
           </div>
           <div>
             <h2 className="text-base font-semibold text-white">{c.candidate_name}</h2>
-            <p className="text-xs text-zinc-500">{c.role} · {c.field}</p>
+            <p className="text-xs text-zinc-400">{c.role} · {c.field}</p>
           </div>
         </div>
         <div className="flex items-center gap-2">
           <span className={`text-[10px] font-semibold px-2 py-1 rounded-full border ${LEVEL_STYLE[c.candidate_level] ?? 'bg-zinc-900 text-zinc-500 border-zinc-800'}`}>
             {t(`admin.levels.${c.candidate_level}`, c.candidate_level)}
           </span>
-          {onClose && (
-            <button onClick={onClose} aria-label={t('admin.sections.close', 'Close')}
-              className="flex items-center justify-center w-8 h-8 rounded-lg text-zinc-500 hover:text-white hover:bg-white/10 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white/30">
+          {!confirm ? (
+            <button onClick={() => setConfirm(true)} aria-label="Discard candidate"
+              className="flex items-center justify-center w-8 h-8 rounded-lg text-zinc-600 hover:text-red-400 hover:bg-red-950/40 transition-colors cursor-pointer focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-red-500/40">
               <X size={16} aria-hidden="true" />
             </button>
+          ) : (
+            <div className="flex items-center gap-1.5">
+              <span className="text-[10px] text-zinc-400">Discard?</span>
+              <button onClick={handleDelete} disabled={deleting}
+                className="px-2 py-1 text-[10px] font-semibold rounded-md bg-red-600 hover:bg-red-500 text-white disabled:opacity-50 transition-colors cursor-pointer">
+                {deleting ? '…' : 'Yes'}
+              </button>
+              <button onClick={() => setConfirm(false)}
+                className="px-2 py-1 text-[10px] font-semibold rounded-md bg-zinc-800 hover:bg-zinc-700 text-zinc-300 transition-colors cursor-pointer">
+                No
+              </button>
+            </div>
           )}
         </div>
       </div>
@@ -111,19 +135,19 @@ function CandidateDetail({ c, onClose }) {
         <div className="flex items-center gap-3 px-4 py-3 rounded-xl border border-white/10 bg-zinc-900/90">
           <RecIcon size={18} className={recColor} aria-hidden="true" />
           <div>
-            <p className="text-[10px] uppercase tracking-widest text-zinc-600 mb-0.5">{t('admin.sections.recommendation')}</p>
+            <p className="text-[10px] uppercase tracking-widest text-zinc-400 mb-0.5">{t('admin.sections.recommendation')}</p>
             <p className="text-sm font-semibold text-white">{t(`admin.recommendations.${c.final_recommendation}`, c.final_recommendation)}</p>
           </div>
         </div>
 
         {/* Score breakdown */}
         <div className="rounded-xl border border-white/10 bg-zinc-900/90 px-5 py-4 space-y-4">
-          <p className="text-[10px] uppercase tracking-widest text-zinc-600">{t('admin.sections.scoreBreakdown')}</p>
+          <p className="text-[10px] uppercase tracking-widest text-zinc-400">{t('admin.sections.scoreBreakdown')}</p>
           {scores.map(({ label, icon: Icon, value }) => (
             <div key={label}>
               <div className="flex items-center gap-2 mb-1.5">
                 <Icon size={12} className="text-zinc-500 shrink-0" aria-hidden="true" />
-                <span className="text-xs text-zinc-400">{label}</span>
+                <span className="text-xs text-zinc-300">{label}</span>
               </div>
               <ScoreBar value={value} />
             </div>
@@ -132,19 +156,19 @@ function CandidateDetail({ c, onClose }) {
 
         {/* Strengths */}
         <div className="rounded-xl border border-white/10 bg-zinc-900/90 px-5 py-4">
-          <p className="text-[10px] uppercase tracking-widest text-zinc-600 mb-3">{t('admin.sections.strengths')}</p>
-          <p className="text-sm text-zinc-300 leading-relaxed">{c.strengths}</p>
+          <p className="text-[10px] uppercase tracking-widest text-zinc-400 mb-3">{t('admin.sections.strengths')}</p>
+          <p className="text-sm text-white leading-relaxed">{c.strengths}</p>
         </div>
 
         {/* Weaknesses */}
         <div className="rounded-xl border border-white/10 bg-zinc-900/90 px-5 py-4">
-          <p className="text-[10px] uppercase tracking-widest text-zinc-600 mb-3">{t('admin.sections.weaknesses')}</p>
-          <p className="text-sm text-zinc-300 leading-relaxed">{c.weaknesses}</p>
+          <p className="text-[10px] uppercase tracking-widest text-zinc-400 mb-3">{t('admin.sections.weaknesses')}</p>
+          <p className="text-sm text-white leading-relaxed">{c.weaknesses}</p>
         </div>
 
         {/* CV Profile */}
         <div className="rounded-xl border border-white/10 bg-zinc-900/90 px-5 py-4 space-y-3">
-          <p className="text-[10px] uppercase tracking-widest text-zinc-600">{t('admin.sections.cvProfile')}</p>
+          <p className="text-[10px] uppercase tracking-widest text-zinc-400">{t('admin.sections.cvProfile')}</p>
 
           {[
             { label: t('admin.fields.yearsExperience'), value: t('admin.yearsExp', { count: c.years_experience }) },
@@ -154,28 +178,28 @@ function CandidateDetail({ c, onClose }) {
             { label: t('admin.fields.tools'),           value: c.tools },
           ].map(({ label, value }) => value && (
             <div key={label} className="flex flex-col gap-0.5">
-              <span className="text-[10px] text-zinc-600">{label}</span>
-              <span className="text-xs text-zinc-300 leading-relaxed">{value}</span>
+              <span className="text-[10px] text-zinc-400 uppercase tracking-wide">{label}</span>
+              <span className="text-xs text-white leading-relaxed">{value}</span>
             </div>
           ))}
         </div>
 
         {/* Experience summary */}
         <div className="rounded-xl border border-white/10 bg-zinc-900/90 px-5 py-4">
-          <p className="text-[10px] uppercase tracking-widest text-zinc-600 mb-3">{t('admin.sections.experienceSummary')}</p>
-          <p className="text-sm text-zinc-300 leading-relaxed">{c.experience_summary}</p>
+          <p className="text-[10px] uppercase tracking-widest text-zinc-400 mb-3">{t('admin.sections.experienceSummary')}</p>
+          <p className="text-sm text-white leading-relaxed">{c.experience_summary}</p>
         </div>
 
         {/* Edge case — only if present */}
         {c.surprise_edge_case && (
           <div className="rounded-xl border border-white/10 bg-zinc-900/90 px-5 py-4">
-            <p className="text-[10px] uppercase tracking-widest text-zinc-600 mb-3">{t('admin.sections.edgeCase')}</p>
-            <p className="text-sm text-zinc-300 leading-relaxed">{c.surprise_edge_case}</p>
+            <p className="text-[10px] uppercase tracking-widest text-zinc-400 mb-3">{t('admin.sections.edgeCase')}</p>
+            <p className="text-sm text-white leading-relaxed">{c.surprise_edge_case}</p>
           </div>
         )}
 
         {/* Candidate ID */}
-        <p className="text-[10px] text-zinc-700 text-center pb-2">{c.candidate_id}</p>
+        <p className="text-[10px] text-zinc-600 text-center pb-4">{c.candidate_id}</p>
       </div>
     </div>
   )
@@ -202,7 +226,7 @@ export default function AdminPage() {
 
   return (
     <div className="min-h-dvh bg-black text-white flex flex-col overflow-hidden">
-      <div className="fixed z-0 pointer-events-none opacity-20"
+      <div className="fixed z-0 pointer-events-none opacity-30"
         style={{ inset: '-20%', transform: 'rotate(-18deg) scaleX(1.4)', transformOrigin: 'center center' }}>
         <Threads amplitude={1.2} distance={0.4} enableMouseInteraction={false} color={[1, 1, 1]} />
       </div>
@@ -210,7 +234,7 @@ export default function AdminPage() {
       <header className="fixed top-0 inset-x-0 z-50 border-b border-white/[0.06] bg-black/80 backdrop-blur-md shrink-0">
         <div className="max-w-7xl mx-auto px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <span className="font-semibold text-white text-base tracking-tight">mir9ad</span>
+            <span className="font-semibold text-white text-base" dir="rtl">مرصاد</span>
             <span className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-white/10 text-zinc-500 uppercase tracking-wider">{t('admin.badge')}</span>
           </div>
           <div className="flex items-center gap-4">
@@ -266,7 +290,11 @@ export default function AdminPage() {
           {selected ? (
             <CandidateDetail
               c={selected}
-              onClose={() => setPanelOpen(false)}
+              onDelete={(id) => {
+                setCandidates(prev => prev.filter(c => c.candidate_id !== id))
+                setSelected(null)
+                setPanelOpen(false)
+              }}
             />
           ) : (
             <div className="flex-1 flex items-center justify-center text-zinc-700 text-sm">

@@ -1,26 +1,26 @@
 Candidate ID,Role,Actual Level,Calculated Level,Actual Fit Score,Calculated Fit Score,Score Difference
-CV-001,Project Manager,Strong,Strong,89,89.0,-0.0
+CV-001,Project Manager,Strong,Strong,89,89.0,0.0
 CV-002,Project Manager,Strong,Strong,82,82.0,-0.0
 CV-003,Project Manager,Strong,Strong,95,95.0,-0.0
 CV-004,Project Manager,Strong,Strong,84,84.0,-0.0
 CV-005,Project Manager,Strong,Strong,84,84.0,-0.0
 CV-006,Project Manager,Strong,Strong,88,88.0,0.0
-CV-007,Project Manager,Strong,Strong,89,89.0,-0.0
+CV-007,Project Manager,Strong,Strong,89,89.0,0.0
 CV-008,Project Manager,Strong,Strong,83,83.0,-0.0
 CV-009,Project Manager,Strong,Strong,88,88.0,0.0
 CV-010,Project Manager,Strong,Strong,92,92.0,0.0
-CV-011,Project Manager,Average,Average,64,64.0,-0.0
-CV-012,Project Manager,Average,Average,66,66.0,0.0
-CV-013,Project Manager,Average,Average,73,73.0,0.0
-CV-014,Project Manager,Average,Average,60,60.0,-0.0
+CV-011,Project Manager,Average,Average,64,64.0,0.0
+CV-012,Project Manager,Average,Average,66,66.0,-0.0
+CV-013,Project Manager,Average,Average,73,73.0,-0.0
+CV-014,Project Manager,Average,Average,60,60.0,0.0
 CV-015,Project Manager,Average,Average,76,76.0,0.0
 CV-016,Project Manager,Average,Average,61,61.0,-0.0
-CV-017,Project Manager,Average,Average,60,60.0,-0.0
+CV-017,Project Manager,Average,Average,60,60.0,0.0
 CV-018,Project Manager,Average,Average,67,67.0,0.0
-CV-019,Project Manager,Average,Average,62,62.0,0.0
+CV-019,Project Manager,Average,Average,62,62.0,-0.0
 CV-020,Project Manager,Average,Average,62,62.0,-0.0
 CV-021,Project Manager,Weak,Weak,32,32.0,-0.0
-CV-022,Project Manager,Weak,Weak,26,26.0,-0.0
+CV-022,Project Manager,Weak,Weak,26,26.0,0.0
 CV-023,Project Manager,Weak,Weak,48,48.0,0.0
 CV-024,Project Manager,Weak,Weak,25,25.0,-0.0
 CV-025,Project Manager,Weak,Weak,44,44.0,0.0
@@ -29,123 +29,3 @@ CV-027,Project Manager,Weak,Weak,48,48.0,0.0
 CV-028,Project Manager,Weak,Weak,40,40.0,0.0
 CV-029,Project Manager,Weak,Weak,48,48.0,0.0
 CV-030,Project Manager,Weak,Weak,34,34.0,-0.0
-CV-036,Financial Analyst,Strong,Strong,90,90.0,0.0
-CV-037,Financial Analyst,Strong,Strong,85,85.0,-0.0
-CV-038,Financial Analyst,Strong,Strong,94,94.0,0.0
-CV-039,Financial Analyst,Strong,Strong,87,87.0,-0.0
-CV-040,Financial Analyst,Strong,Strong,88,88.0,-0.0
-CV-041,Financial Analyst,Strong,Strong,90,90.0,-0.0
-CV-042,Financial Analyst,Strong,Strong,93,93.0,-0.0
-CV-043,Financial Analyst,Strong,Strong,87,87.0,-0.0
-CV-044,Financial Analyst,Strong,Strong,95,95.0,0.0
-CV-045,Financial Analyst,Strong,Strong,89,89.0,0.0
-CV-046,Financial Analyst,Average,Average,73,73.0,0.0
-CV-047,Financial Analyst,Average,Average,66,66.0,-0.0
-CV-048,Financial Analyst,Average,Average,73,73.0,0.0
-CV-049,Financial Analyst,Average,Average,61,61.0,-0.0
-CV-050,Financial Analyst,Average,Average,67,67.0,-0.0
-CV-051,Financial Analyst,Average,Average,62,62.0,-0.0
-CV-052,Financial Analyst,Average,Average,70,70.0,-0.0
-CV-053,Financial Analyst,Average,Average,72,72.0,-0.0
-CV-054,Financial Analyst,Average,Average,70,70.0,0.0
-CV-055,Financial Analyst,Average,Average,66,66.0,0.0
-CV-056,Financial Analyst,Weak,Weak,47,47.0,0.0
-CV-057,Financial Analyst,Weak,Weak,34,34.0,0.0
-CV-058,Financial Analyst,Weak,Weak,28,28.0,-0.0
-CV-059,Financial Analyst,Weak,Weak,38,38.0,0.0
-CV-060,Financial Analyst,Weak,Weak,30,30.0,-0.0
-CV-061,Financial Analyst,Weak,Weak,43,43.0,-0.0
-CV-062,Financial Analyst,Weak,Weak,42,42.0,0.0
-CV-063,Financial Analyst,Weak,Weak,38,38.0,-0.0
-CV-064,Financial Analyst,Weak,Weak,46,46.0,-0.0
-CV-065,Financial Analyst,Weak,Weak,32,32.0,0.0
-CV-071,Digital Marketing Specialist,Strong,Strong,94,94.0,0.0
-CV-072,Digital Marketing Specialist,Strong,Strong,82,82.0,-0.0
-CV-073,Digital Marketing Specialist,Strong,Strong,85,85.0,-0.0
-CV-074,Digital Marketing Specialist,Strong,Strong,91,91.0,0.0
-CV-075,Digital Marketing Specialist,Strong,Strong,92,92.0,-0.0
-CV-076,Digital Marketing Specialist,Strong,Strong,82,82.0,-0.0
-CV-077,Digital Marketing Specialist,Strong,Strong,88,88.0,0.0
-CV-078,Digital Marketing Specialist,Strong,Strong,90,90.0,-0.0
-CV-079,Digital Marketing Specialist,Strong,Strong,90,90.0,0.0
-CV-080,Digital Marketing Specialist,Strong,Strong,93,93.0,0.0
-CV-081,Digital Marketing Specialist,Average,Average,65,65.0,-0.0
-CV-082,Digital Marketing Specialist,Average,Average,59,59.0,0.0
-CV-083,Digital Marketing Specialist,Average,Average,59,59.0,-0.0
-CV-084,Digital Marketing Specialist,Average,Average,66,66.0,0.0
-CV-085,Digital Marketing Specialist,Average,Average,69,69.0,-0.0
-CV-086,Digital Marketing Specialist,Average,Average,59,59.0,-0.0
-CV-087,Digital Marketing Specialist,Average,Average,73,73.0,0.0
-CV-088,Digital Marketing Specialist,Average,Average,64,64.0,-0.0
-CV-089,Digital Marketing Specialist,Average,Average,58,58.0,-0.0
-CV-090,Digital Marketing Specialist,Average,Average,69,69.0,-0.0
-CV-091,Digital Marketing Specialist,Weak,Weak,33,33.0,0.0
-CV-092,Digital Marketing Specialist,Weak,Weak,32,32.0,-0.0
-CV-093,Digital Marketing Specialist,Weak,Weak,38,38.0,0.0
-CV-094,Digital Marketing Specialist,Weak,Weak,27,27.0,-0.0
-CV-095,Digital Marketing Specialist,Weak,Weak,28,28.0,-0.0
-CV-096,Digital Marketing Specialist,Weak,Weak,25,25.0,0.0
-CV-097,Digital Marketing Specialist,Weak,Weak,27,27.0,0.0
-CV-098,Digital Marketing Specialist,Weak,Weak,49,49.0,0.0
-CV-099,Digital Marketing Specialist,Weak,Weak,30,30.0,-0.0
-CV-100,Digital Marketing Specialist,Weak,Weak,34,34.0,0.0
-CV-106,Data Analyst,Strong,Strong,85,85.0,0.0
-CV-107,Data Analyst,Strong,Strong,95,95.0,0.0
-CV-108,Data Analyst,Strong,Strong,82,82.0,-0.0
-CV-109,Data Analyst,Strong,Strong,91,91.0,-0.0
-CV-110,Data Analyst,Strong,Strong,91,91.0,0.0
-CV-111,Data Analyst,Strong,Strong,93,93.0,0.0
-CV-112,Data Analyst,Strong,Strong,88,88.0,-0.0
-CV-113,Data Analyst,Strong,Strong,84,84.0,-0.0
-CV-114,Data Analyst,Strong,Strong,90,90.0,0.0
-CV-115,Data Analyst,Strong,Strong,82,82.0,-0.0
-CV-116,Data Analyst,Average,Average,65,65.0,-0.0
-CV-117,Data Analyst,Average,Average,74,74.0,0.0
-CV-118,Data Analyst,Average,Average,68,68.0,0.0
-CV-119,Data Analyst,Average,Average,73,73.0,0.0
-CV-120,Data Analyst,Average,Average,67,67.0,0.0
-CV-121,Data Analyst,Average,Average,67,67.0,0.0
-CV-122,Data Analyst,Average,Average,62,62.0,-0.0
-CV-123,Data Analyst,Average,Average,73,73.0,-0.0
-CV-124,Data Analyst,Average,Average,60,60.0,-0.0
-CV-125,Data Analyst,Average,Average,73,73.0,0.0
-CV-126,Data Analyst,Weak,Weak,46,46.0,0.0
-CV-127,Data Analyst,Weak,Weak,32,32.0,-0.0
-CV-128,Data Analyst,Weak,Weak,39,39.0,0.0
-CV-129,Data Analyst,Weak,Weak,38,38.0,0.0
-CV-130,Data Analyst,Weak,Weak,29,29.0,-0.0
-CV-131,Data Analyst,Weak,Weak,49,49.0,0.0
-CV-132,Data Analyst,Weak,Weak,34,34.0,0.0
-CV-133,Data Analyst,Weak,Weak,39,39.0,-0.0
-CV-134,Data Analyst,Weak,Weak,38,38.0,0.0
-CV-135,Data Analyst,Weak,Weak,39,39.0,0.0
-CV-141,Backend Developer,Strong,Strong,95,95.0,0.0
-CV-142,Backend Developer,Strong,Strong,82,82.0,-0.0
-CV-143,Backend Developer,Strong,Strong,85,85.0,0.0
-CV-144,Backend Developer,Strong,Strong,92,92.0,0.0
-CV-145,Backend Developer,Strong,Strong,92,92.0,-0.0
-CV-146,Backend Developer,Strong,Strong,95,95.0,0.0
-CV-147,Backend Developer,Strong,Strong,89,89.0,-0.0
-CV-148,Backend Developer,Strong,Strong,83,83.0,-0.0
-CV-149,Backend Developer,Strong,Strong,87,87.0,0.0
-CV-150,Backend Developer,Strong,Strong,92,92.0,0.0
-CV-151,Backend Developer,Average,Average,71,71.0,0.0
-CV-152,Backend Developer,Average,Average,70,70.0,0.0
-CV-153,Backend Developer,Average,Average,74,74.0,0.0
-CV-154,Backend Developer,Average,Average,58,58.0,-0.0
-CV-155,Backend Developer,Average,Average,59,59.0,-0.0
-CV-156,Backend Developer,Average,Average,67,67.0,0.0
-CV-157,Backend Developer,Average,Average,61,61.0,-0.0
-CV-158,Backend Developer,Average,Average,62,62.0,-0.0
-CV-159,Backend Developer,Average,Average,65,65.0,0.0
-CV-160,Backend Developer,Average,Average,73,73.0,-0.0
-CV-161,Backend Developer,Weak,Weak,40,40.0,0.0
-CV-162,Backend Developer,Weak,Weak,29,29.0,-0.0
-CV-163,Backend Developer,Weak,Weak,36,36.0,0.0
-CV-164,Backend Developer,Weak,Weak,32,32.0,-0.0
-CV-165,Backend Developer,Weak,Weak,27,27.0,-0.0
-CV-166,Backend Developer,Weak,Weak,34,34.0,-0.0
-CV-167,Backend Developer,Weak,Weak,36,36.0,0.0
-CV-168,Backend Developer,Weak,Weak,46,46.0,0.0
-CV-169,Backend Developer,Weak,Weak,32,32.0,-0.0
-CV-170,Backend Developer,Weak,Weak,25,25.0,-0.0

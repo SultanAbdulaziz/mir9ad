@@ -154,12 +154,11 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
     audioRecorderRef.current?.stop()
   }
 
-  // ── submit — answer is "" backend transcribes from audio via Gemini ──────
+  // ── submit — backend transcribes from audio_b64 via Gemini ──────────────
   async function handleSubmit() {
     if (!audioBlob) return
     const audio_b64 = await blobToBase64(audioBlob)
-    // answer sent as "" — backend uses audio_b64 for Gemini transcription + scoring
-    await onSubmit?.('', audio_b64, 'audio/webm')
+    await onSubmit?.(audio_b64, 'audio/webm')
   }
 
   // ── cleanup on unmount only ───────────────────────────────────────────────

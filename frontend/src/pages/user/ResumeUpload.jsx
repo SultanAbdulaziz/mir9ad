@@ -28,14 +28,12 @@ export default function ResumeUpload({ onNext, disabled: parentDisabled = false 
     return ''
   }
 
-  async function handleFile(f) {
+  function handleFile(f) {
     const err = validate(f)
     if (err) { setError(err); setFile(null); return }
     setError('')
     setFile(f)
-    // Brief visual feedback before advancing
     setLoading(true)
-    await new Promise(r => setTimeout(r, 600))
     onNext?.(f)
   }
 

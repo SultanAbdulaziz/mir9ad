@@ -8,9 +8,8 @@ from pydantic import BaseModel, Field
 
 # ── Requests ───────────────────────────────────────────────────────────────────
 class AnswerRequest(BaseModel):
-    answer:     str           = Field(..., description="Transcribed text of the candidate's answer")
-    audio_b64:  Optional[str] = Field(None, description="Optional base64-encoded audio of the answer for delivery scoring")
-    audio_mime: str           = Field("audio/webm", description="MIME type of audio_b64 (e.g. audio/webm, audio/mp4, audio/wav)")
+    audio_b64:  Optional[str] = Field(None, description="Base64-encoded audio — backend transcribes via Gemini")
+    audio_mime: str           = Field("audio/webm", description="MIME type of audio_b64")
 
 
 # ── Sub-shapes ─────────────────────────────────────────────────────────────────
