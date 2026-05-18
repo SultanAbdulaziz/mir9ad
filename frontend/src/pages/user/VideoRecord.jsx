@@ -202,9 +202,16 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
             </span>
           </div>
         </div>
-        <p className="text-base font-medium text-white leading-relaxed">
-          {question?.question ?? t('user.record.noQuestion')}
-        </p>
+        <div className="flex flex-col gap-2">
+          {(question?.question ?? t('user.record.noQuestion'))
+            .split(/(?<=[.?])\s+/)
+            .map((sentence, i) => (
+              <p key={i} className="text-sm text-zinc-200 leading-relaxed">
+                {sentence}
+              </p>
+            ))
+          }
+        </div>
         {phase === 'thinking' && (
           <div className="mt-4 h-0.5 bg-white/10 rounded-full overflow-hidden">
             <div className="h-full bg-white/40 transition-all duration-1000 rounded-full"
