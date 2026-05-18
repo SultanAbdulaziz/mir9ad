@@ -50,9 +50,12 @@ def _supabase_upsert(table: str, row: dict) -> None:
         print(f"[supabase {table} write failed: {exc}]", file=sys.stderr)
 
 # ── Model ──────────────────────────────────────────────────────────────────────
-# Single Gemini client handles both text scoring and audio delivery scoring.
-_GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-_GEMINI_MODEL   = "gemini-2.5-pro"   # used for text AND audio
+# Pro for the two high-stakes calls (CV analysis, final narrative).
+# Flash for everything else — ~17× cheaper output, higher RPM, same accuracy on
+# structured/rubric tasks. Keeps $25 credits usable across 1,500+ interviews.
+_GEMINI_API_KEY   = os.getenv("GEMINI_API_KEY")
+_GEMINI_PRO       = "gemini-2.5-pro"    # CV analysis + final evaluation
+_GEMINI_FLASH     = "gemini-2.5-flash"  # question selection, scoring, transcription, delivery
 _gemini_client: Any = None
 
 
@@ -74,10 +77,11 @@ def _get_gemini() -> Any:
 _T = TypeVar("_T", bound=BaseModel)
 
 
-def _gemini_structured(schema: type[_T], system: str, user: str) -> _T:
+def _gemini_structured(schema: type[_T], system: str, user: str, model: str = _GEMINI_FLASH) -> _T:
     """
     Call Gemini with structured output + exponential backoff retry.
     Retries up to 5 times on 429 / 503 (high demand) before raising.
+    Defaults to Flash; pass model=_GEMINI_PRO for the two high-stakes calls.
     """
     import time
 
@@ -93,7 +97,7 @@ def _gemini_structured(schema: type[_T], system: str, user: str) -> _T:
     for attempt in range(max_retries):
         try:
             response = client.models.generate_content(
-                model=_GEMINI_MODEL,
+                model=model,
                 contents=[user],
                 config=gtypes.GenerateContentConfig(
                     system_instruction=system,
@@ -367,7 +371,7 @@ def score_delivery_from_audio(audio_bytes: bytes, mime_type: str = "audio/webm")
 
     try:
         response = client.models.generate_content(
-            model=_GEMINI_MODEL,
+            model=_GEMINI_FLASH,
             contents=[
                 gtypes.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
                 _DELIVERY_PROMPT,
@@ -511,7 +515,7 @@ def analyze_cv_node(state: InterviewState) -> dict:
         f"Evaluation Focus: {jd.get('Evaluation Focus', '')}"
     )
 
-    result = _gemini_structured(CVAnalysisOutput, _SYS_CV_ANALYSIS, user_msg)
+    result = _gemini_structured(CVAnalysisOutput, _SYS_CV_ANALYSIS, user_msg, model=_GEMINI_PRO)
 
     features      = result.resume_features
     dim_scores    = result.dimension_scores.model_dump()
@@ -647,7 +651,7 @@ def ask_question_node(state: InterviewState) -> dict:
                 try:
                     audio_bytes = base64.b64decode(audio_b64)
                     resp = client.models.generate_content(
-                        model=_GEMINI_MODEL,
+                        model=_GEMINI_FLASH,
                         contents=[
                             gtypes.Part.from_bytes(data=audio_bytes, mime_type=audio_mime),
                             "Transcribe this audio exactly as spoken. Return only the transcript text, nothing else.",
@@ -783,7 +787,7 @@ def finalize_node(state: InterviewState) -> dict:
         + f"\n\nRISK FLAGS: {deduped_flags}"
     )
 
-    narrative = _gemini_structured(FinalEvaluationNarrative, _SYS_FINALIZE, user_msg)
+    narrative = _gemini_structured(FinalEvaluationNarrative, _SYS_FINALIZE, user_msg, model=_GEMINI_PRO)
 
     # Merge LLM narrative with computed values — never trust LLM for numbers
     evaluation: dict = {
