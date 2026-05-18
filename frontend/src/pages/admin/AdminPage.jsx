@@ -4,7 +4,7 @@ import { User, ChevronRight, X, TrendingUp, Brain, Mic2, AlertTriangle, CheckCir
 import Threads from '../../components/Threads'
 import LangToggle from '../../components/LangToggle'
 
-const API = 'http://localhost:8000'
+const API = import.meta.env.VITE_API_URL ?? ''
 
 
 // ── helpers ───────────────────────────────────────────────────────────────────

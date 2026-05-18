@@ -11,7 +11,7 @@ const STEP_KEYS = ['upload', 'record', 'results']
 
 // ── API ───────────────────────────────────────────────────────────────────────
 // Backend runs on :8000 in dev. Change to your deployed URL in production.
-const API = 'http://localhost:8000'
+const API = import.meta.env.VITE_API_URL ?? ''
 
 /**
  * POST /interviews
