@@ -509,20 +509,32 @@ def select_question_node(state: InterviewState) -> dict:
     covered   = set(state.get("dimensions_covered", []))
     uncovered = sorted([(d, s) for d, s in scores.items() if d not in covered], key=lambda x: x[1])
     weakest   = [d for d, _ in uncovered[:4]]
+    # Hard-filter: only offer questions whose dimension hasn't been covered yet.
+    # This prevents the LLM from circling back to already-asked topics.
     available = [
         q for q in bank
         if q["Question ID"] not in asked_ids
         and q["Question ID"] not in GENERAL_OPENING_IDS
         and q["Question ID"] != GENERAL_CLOSING_ID
+        and _CATEGORY_TO_DIM.get(q.get("Category", ""), "pm_readiness") not in covered
     ]
+
+    # Fallback: if every uncovered-dimension question is exhausted, open the full pool
+    if not available:
+        available = [
+            q for q in bank
+            if q["Question ID"] not in asked_ids
+            and q["Question ID"] not in GENERAL_OPENING_IDS
+            and q["Question ID"] != GENERAL_CLOSING_ID
+        ]
 
     user_msg = (
         f"CV DIMENSION SCORES:\n{json.dumps(scores, indent=2)}\n\n"
-        f"DIMENSIONS ALREADY COVERED: {list(covered)}\n"
-        f"WEAKEST UNCOVERED DIMENSIONS: {weakest}\n"
+        f"DIMENSIONS ALREADY COVERED (do NOT ask about these again): {list(covered)}\n"
+        f"WEAKEST UNCOVERED DIMENSIONS (prioritize these): {weakest}\n"
         f"RISK FLAGS: {state.get('risk_flags', [])}\n\n"
         f"RESUME EXCERPT (first 700 chars):\n{state['resume_text'][:700]}\n\n"
-        f"AVAILABLE QUESTIONS:\n{json.dumps(available, ensure_ascii=False, indent=2)}"
+        f"AVAILABLE QUESTIONS (all target uncovered dimensions):\n{json.dumps(available, ensure_ascii=False, indent=2)}"
     )
 
     result = _gemini_structured(QuestionSelection, _SYS_SELECT_QUESTION, user_msg)
