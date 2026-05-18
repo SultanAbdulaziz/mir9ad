@@ -3,7 +3,7 @@ import { useTranslation } from 'react-i18next'
 import { Video, Square, Send, AlertCircle, Mic, Loader2 } from 'lucide-react'
 
 const THINK_SECONDS  = 30
-const RECORD_SECONDS = 30
+const RECORD_SECONDS = 60
 
 // Video MIME for preview
 const VIDEO_MIME = ['video/webm;codecs=vp9,opus', 'video/webm;codecs=vp8,opus', 'video/webm', 'video/mp4']

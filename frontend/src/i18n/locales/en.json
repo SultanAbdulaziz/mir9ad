@@ -4,6 +4,8 @@
     "upload": {
       "heading": "Upload Your Resume",
       "subheading": "We'll analyse your CV and prepare tailored interview questions.",
+      "estimatedTime": "~5 min",
+      "estimatedLabel": "Estimated time",
       "dropzone": "Drag & drop your resume here",
       "or": "or",
       "browse": "Browse file",

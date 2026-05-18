@@ -239,6 +239,13 @@ export default function UserPage() {
 
         {/* Heading */}
         <div className="text-center max-w-md animate-fade-in-up">
+          {/* Estimated time badge — only on upload step */}
+          {step === 0 && (
+            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-white/10 bg-white/[0.04] text-[10px] font-medium text-zinc-400 mb-5">
+              <span className="w-1.5 h-1.5 rounded-full bg-white/40" aria-hidden="true" />
+              {t('user.upload.estimatedLabel')} · {t('user.upload.estimatedTime')}
+            </div>
+          )}
           <h1 className="text-4xl sm:text-5xl font-bold tracking-tighter mb-4">
             <span className="shiny-text">{t(`user.${stepKey}.heading`)}</span>
           </h1>
