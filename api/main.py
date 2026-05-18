@@ -12,6 +12,8 @@ Endpoints:
 """
 from __future__ import annotations
 
+import csv
+import io
 import uuid
 from pathlib import Path
 from typing import Any
@@ -50,29 +52,74 @@ def healthz() -> schemas.HealthResponse:
     )
 
 
+_CSV_REQUIRED_COLS = {"Candidate ID", "Role", "Resume Text"}
+
 # ── Interview lifecycle ────────────────────────────────────────────────────────
 @app.post("/interviews", response_model=schemas.InterviewSnapshot, tags=["interviews"])
 async def start_interview_from_pdf(
-    resume:         UploadFile = File(..., description="Candidate resume as a PDF"),
+    resume:         UploadFile = File(..., description="Candidate resume — PDF or CSV"),
     candidate_name: str        = Form("Candidate"),
 ) -> dict:
-    """Start a new interview from an uploaded PDF resume."""
-    if (resume.content_type or "").lower() not in {"application/pdf", "application/octet-stream"}:
-        if not (resume.filename or "").lower().endswith(".pdf"):
+    """Start a new interview from an uploaded PDF or CSV resume file."""
+    filename = (resume.filename or "").lower()
+    content  = await resume.read()
+
+    # ── CSV path ──────────────────────────────────────────────────────────────
+    if filename.endswith(".csv"):
+        try:
+            reader = csv.DictReader(io.StringIO(content.decode("utf-8")))
+            rows   = list(reader)
+        except Exception:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
-                detail=f"Expected a PDF file, got content_type={resume.content_type!r}",
+                detail="Could not parse CSV file — ensure it is UTF-8 encoded.",
             )
 
-    pdf_bytes   = await resume.read()
-    resume_text = agent.parse_pdf_resume(pdf_bytes)
-    if not resume_text:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Could not extract text from PDF — file may be image-only or corrupted.",
-        )
+        missing = _CSV_REQUIRED_COLS - set(reader.fieldnames or [])
+        if missing:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"CSV is missing required columns: {', '.join(sorted(missing))}. "
+                       f"Required: Candidate ID, Role, Resume Text",
+            )
 
-    interview_id = str(uuid.uuid4())
+        if not rows:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="CSV file is empty — no candidate rows found.",
+            )
+
+        row         = rows[0]   # process first candidate
+        resume_text = row["Resume Text"].strip()
+        cid         = row.get("Candidate ID", "").strip()
+        candidate_name = cid or candidate_name
+
+        if not resume_text:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Resume Text column is empty in the first row.",
+            )
+
+        interview_id = cid or str(uuid.uuid4())
+
+    # ── PDF path ──────────────────────────────────────────────────────────────
+    else:
+        if (resume.content_type or "").lower() not in {"application/pdf", "application/octet-stream"}:
+            if not filename.endswith(".pdf"):
+                raise HTTPException(
+                    status_code=status.HTTP_400_BAD_REQUEST,
+                    detail="Only PDF or CSV files are accepted.",
+                )
+
+        resume_text = agent.parse_pdf_resume(content)
+        if not resume_text:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Could not extract text from PDF — file may be image-only or corrupted.",
+            )
+
+        interview_id = str(uuid.uuid4())
+
     return agent.start_interview(
         interview_id=interview_id,
         resume_text=resume_text,

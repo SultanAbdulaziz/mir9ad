@@ -2,9 +2,9 @@ import { useRef, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { UploadCloud, FileText, X, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
 
-const ACCEPTED_TYPES = ['application/pdf']
-const ACCEPTED_EXTS  = ['.pdf']
-const MAX_BYTES     = 5 * 1024 * 1024
+const ACCEPTED_TYPES = ['application/pdf', 'text/csv', 'application/csv', 'application/vnd.ms-excel']
+const ACCEPTED_EXTS  = ['.pdf', '.csv']
+const MAX_BYTES      = 5 * 1024 * 1024
 
 function formatBytes(b) {
   if (b < 1024 * 1024) return `${(b / 1024).toFixed(1)} KB`

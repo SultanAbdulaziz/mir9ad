@@ -7,13 +7,14 @@
       "dropzone": "Drag & drop your resume here",
       "or": "or",
       "browse": "Browse file",
-      "accepted": "PDF only · Max 5 MB",
+      "accepted": "PDF or CSV · Max 5 MB",
       "remove": "Remove",
       "uploading": "Uploading…",
       "fetchingQuestions": "Analysing your CV and preparing questions…",
       "errors": {
-        "type": "Only PDF files are accepted.",
-        "size": "File must be smaller than 5 MB."
+        "type": "Only PDF or CSV files are accepted.",
+        "size": "File must be smaller than 5 MB.",
+        "csvCols": "CSV must have columns: Candidate ID, Role, Resume Text"
       }
     },
     "record": {
