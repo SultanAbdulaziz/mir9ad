@@ -174,7 +174,11 @@ _STATIC = Path(__file__).parent.parent / "static"
 if _STATIC.exists():
     app.mount("/assets", StaticFiles(directory=_STATIC / "assets"), name="assets")
 
+    _API_PREFIXES = ("interviews", "admin", "healthz")
+
     @app.get("/{full_path:path}", include_in_schema=False)
     def serve_spa(full_path: str) -> FileResponse:
-        """Catch-all: serve index.html for all non-API routes (SPA routing)."""
+        # Safety net: never serve HTML for known API paths
+        if any(full_path.startswith(p) for p in _API_PREFIXES):
+            raise HTTPException(status_code=404, detail="Not found")
         return FileResponse(_STATIC / "index.html")
