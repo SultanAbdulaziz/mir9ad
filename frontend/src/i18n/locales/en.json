@@ -1,0 +1,52 @@
+{
+  "user": {
+    "steps": {
+      "upload": "Upload Resume",
+      "record": "Record Answer",
+      "results": "Results"
+    },
+    "upload": {
+      "heading": "Upload Your Resume",
+      "subheading": "We'll use it to tailor your interview questions.",
+      "dropzone": "Drag & drop your resume here",
+      "or": "or",
+      "browse": "Browse file",
+      "accepted": "PDF only · Max 5 MB",
+      "remove": "Remove",
+      "uploading": "Uploading…",
+      "fetchingQuestions": "Analysing your CV and preparing questions…",
+      "errors": {
+        "type": "Only PDF files are accepted.",
+        "size": "File must be smaller than 5 MB."
+      }
+    },
+    "record": {
+      "heading": "Answer the Questions",
+      "subheading": "You have 30 seconds per question. Re-record as needed before moving on.",
+      "questionLabel": "Question",
+      "noQuestion": "No question provided.",
+      "allow": "Allow camera & microphone access to start.",
+      "startRecording": "Start Recording",
+      "stopRecording": "Stop",
+      "reRecord": "Re-record",
+      "nextQuestion": "Next Question",
+      "submit": "Submit All",
+      "submitting": "Uploading…",
+      "recording": "Recording…",
+      "preview": "Your recording",
+      "errors": {
+        "permission": "Camera or microphone access was denied. Please allow access in your browser settings."
+      }
+    },
+    "results": {
+      "heading": "You're all done.",
+      "subheading": "We'll get back to you soon.",
+      "body": "Our team will review your answers and resume carefully. Expect to hear from us within 2–3 business days.",
+      "tag": "Submitted successfully"
+    }
+  },
+  "nav": {
+    "langName": "English",
+    "switchTo": "العربية"
+  }
+}
