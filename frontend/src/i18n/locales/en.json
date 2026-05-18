@@ -21,7 +21,7 @@
     },
     "record": {
       "heading": "Answer the Questions",
-      "subheading": "You have 30 seconds per question. Re-record as needed.",
+      "subheading": "You have 1 minute per question. Take your time and answer clearly.",
       "questionLabel": "Question",
       "noQuestion": "No question provided.",
       "allow": "Allow camera & microphone access to start.",
