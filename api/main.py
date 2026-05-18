@@ -127,3 +127,32 @@ def delete_interview(interview_id: str) -> dict[str, str]:
     except Exception:
         pass
     return {"interview_id": interview_id, "status": "cancelled"}
+
+
+# ── Admin ──────────────────────────────────────────────────────────────────────
+@app.get("/admin/candidates", tags=["admin"])
+def get_admin_candidates() -> list[dict]:
+    """
+    Return all candidate records merged from both DB tables.
+    candidates  — scores & recommendation
+    cv_profiles — parsed CV fields
+    """
+    sb = agent._get_supabase()
+    if sb is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Database not configured.",
+        )
+
+    candidates  = sb.table("candidates").select("*").execute().data or []
+    cv_profiles = sb.table("cv_profiles").select("*").execute().data or []
+
+    # Index cv_profiles by candidate_id for O(1) merge
+    profiles_by_id = {p["candidate_id"]: p for p in cv_profiles}
+
+    merged = []
+    for c in candidates:
+        profile = profiles_by_id.get(c["candidate_id"], {})
+        merged.append({**profile, **c})   # candidates fields take priority on conflict
+
+    return merged

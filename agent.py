@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import os
 import sys
+from pathlib import Path
 from typing import Annotated, Any, Optional, TypeVar, TypedDict, cast
 
 import pandas as pd
@@ -15,12 +16,43 @@ from langgraph.types import Command, interrupt
 from pydantic import BaseModel, Field
 from sklearn.linear_model import LinearRegression
 
-load_dotenv()
+# Always load .env from the same directory as this file, regardless of cwd
+load_dotenv(dotenv_path=Path(__file__).parent / ".env")
+
+# ── Supabase ───────────────────────────────────────────────────────────────────
+_supabase_client: Any = None
+
+def _get_supabase() -> Any:
+    """Lazy-load Supabase client. Returns None if credentials not configured."""
+    global _supabase_client
+    if _supabase_client is not None:
+        return _supabase_client
+    # Read env vars here (not at module level) so dotenv is already loaded
+    url = os.getenv("SUPABASE_URL")
+    key = os.getenv("SUPABASE_SERVICE_KEY")
+    if not url or not key:
+        return None
+    try:
+        from supabase import create_client
+        _supabase_client = create_client(url, key)
+        return _supabase_client
+    except Exception:
+        return None
+
+def _supabase_upsert(table: str, row: dict) -> None:
+    """Upsert a row into a Supabase table. Silently skips if client unavailable."""
+    sb = _get_supabase()
+    if sb is None:
+        return
+    try:
+        sb.table(table).upsert(row, on_conflict="candidate_id").execute()
+    except Exception as exc:
+        print(f"[supabase {table} write failed: {exc}]", file=sys.stderr)
 
 # ── Model ──────────────────────────────────────────────────────────────────────
 # Single Gemini client handles both text scoring and audio delivery scoring.
 _GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-_GEMINI_MODEL   = "gemini-2.5-flash"   # used for text AND audio
+_GEMINI_MODEL   = "gemini-2.5-pro"   # used for text AND audio
 _gemini_client: Any = None
 
 
@@ -465,6 +497,28 @@ def analyze_cv_node(state: InterviewState) -> dict:
     else:
         plan, phase = [], "done"
 
+    # ── Write cv_profiles row ─────────────────────────────────────────────────
+    _supabase_upsert("cv_profiles", {
+        "candidate_id":            state["candidate_id"],
+        "role":                    meta.get("Role", state.get("job_description", {}).get("Role", "")),
+        "field":                   meta.get("Field", ""),
+        "candidate_level":         meta.get("Candidate Level", ""),
+        "candidate_name":          meta.get("Candidate Name", ""),
+        "years_experience":        int(features.years_experience),
+        "education":               meta.get("Education", ""),
+        "certification":           meta.get("Certification", ""),
+        "core_skills":             meta.get("Core Skills", ""),
+        "tools":                   meta.get("Tools", ""),
+        "experience_summary":      result.behavioral_summary,
+        "expected_strengths":      "; ".join(q.quote for q in result.evidence_quotes[:3]),
+        "expected_weaknesses":     "; ".join(result.risk_flags[:3]),
+        "surprise_edge_case":      "; ".join(result.risk_flags) if result.risk_flags else "",
+        "testing_use":             meta.get("Testing Use", ""),
+        "expected_fit_score":      int(formula_score),
+        "expected_recommendation": "",
+        "privacy_note":            "Synthetic CV profile; no real personal data.",
+    })
+
     return {
         "cv_dimension_scores": dim_scores,
         "evidence_quotes":     [q.model_dump() for q in result.evidence_quotes],
@@ -723,6 +777,34 @@ def finalize_node(state: InterviewState) -> dict:
         "explanation":         narrative.explanation,
         "interview_qa":        qa_pairs,
     }
+
+    # ── Write candidates row ──────────────────────────────────────────────────
+    knowledge_skills = round(
+        10 * (
+            merged.get("delivery_ownership",   5) * 0.35 +
+            merged.get("evidence_credibility", 5) * 0.35 +
+            merged.get("technical_fluency",    5) * 0.30
+        ), 1
+    )
+    communication = round(merged.get("communication_clarity", 5) * 10, 1)
+    uncertainty   = round((1.0 - float(narrative.confidence_score)) * 100, 1)
+
+    _supabase_upsert("candidates", {
+        "candidate_id":               state["candidate_id"],
+        "fit_score":                  int(overall),
+        "knowledge_and_skills_score": int(knowledge_skills),
+        "communication_score":        int(communication),
+        "uncertainty_and_risk_score": int(uncertainty),
+        "final_recommendation":       recommendation,
+        "strengths":                  "; ".join(narrative.strongest_signals),
+        "weaknesses":                 "; ".join(narrative.weakest_signals),
+    })
+
+    # Also update expected_recommendation in cv_profiles now that we have it
+    _supabase_upsert("cv_profiles", {
+        "candidate_id":            state["candidate_id"],
+        "expected_recommendation": recommendation,
+    })
 
     return {
         "final_evaluation": evaluation,

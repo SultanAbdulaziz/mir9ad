@@ -1,139 +1,11 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useTranslation } from 'react-i18next'
 import { User, ChevronRight, X, TrendingUp, Brain, Mic2, AlertTriangle, CheckCircle, XCircle, MinusCircle, Shield } from 'lucide-react'
 import Threads from '../../components/Threads'
 import LangToggle from '../../components/LangToggle'
 
-// ── Mock data — mirrors the DB tables (candidates + cv_profiles) ──────────────
-const MOCK_CANDIDATES = [
-  {
-    // candidates table
-    candidate_id:               'CV-001',
-    fit_score:                  89,
-    knowledge_and_skills_score: 88,
-    uncertainty_and_risk_score: 85,
-    communication_score:        91,
-    final_recommendation:       'Recommend',
-    strengths:                  'Clear evidence of role-specific results; structured problem-solving and strong ownership; confident delivery',
-    weaknesses:                 'May need onboarding on company-specific processes; limited enterprise-scale experience',
-    // cv_profiles table
-    candidate_name:      'Ibrahim Alharbi',
-    role:                'Project Manager',
-    field:               'Management',
-    candidate_level:     'Strong',
-    years_experience:    9,
-    education:           'BSc Industrial Engineering',
-    certification:       'PMP',
-    core_skills:         'Project planning, Risk management, Stakeholder communication, Agile/Scrum, Budget tracking',
-    tools:               'Asana, PowerPoint, MS Project',
-    experience_summary:  'Led agile ceremonies in 3+ projects with measurable impact; independently handled complex situations and explained decisions clearly.',
-    expected_strengths:  'Clear evidence of role-specific results; structured problem-solving',
-    expected_weaknesses: 'May need onboarding on company-specific processes',
-    surprise_edge_case:  '',
-    expected_fit_score:  89,
-    expected_recommendation: 'Recommend',
-  },
-  {
-    candidate_id:               'CV-002',
-    fit_score:                  72,
-    knowledge_and_skills_score: 70,
-    uncertainty_and_risk_score: 68,
-    communication_score:        75,
-    final_recommendation:       'Maybe / needs further assessment',
-    strengths:                  'Adequate exposure to key areas; growing practical experience; good communicator',
-    weaknesses:                 'Could improve cross-domain exposure; needs more ownership of end-to-end delivery',
-    candidate_name:      'Dina Alghamdi',
-    role:                'Project Manager',
-    field:               'Management',
-    candidate_level:     'Average',
-    years_experience:    6,
-    education:           'BSc Industrial Engineering',
-    certification:       'AWS Developer Associate',
-    core_skills:         'Project planning, Risk management, Stakeholder communication, Agile/Scrum, Confluence',
-    tools:               'MS Project, Asana, PowerPoint',
-    experience_summary:  'Managed stakeholder alignment in 3+ projects; handled complex situations with moderate ownership.',
-    expected_strengths:  'Adequate exposure; growing experience',
-    expected_weaknesses: 'Limited cross-domain depth; needs more ownership',
-    surprise_edge_case:  '',
-    expected_fit_score:  82,
-    expected_recommendation: 'Recommend',
-  },
-  {
-    candidate_id:               'CV-003',
-    fit_score:                  38,
-    knowledge_and_skills_score: 35,
-    uncertainty_and_risk_score: 42,
-    communication_score:        40,
-    final_recommendation:       'Do not recommend',
-    strengths:                  'Foundational skills present; shows motivation and willingness to learn',
-    weaknesses:                 'Limited hands-on experience; requires significant mentoring; skill claims weakly supported',
-    candidate_name:      'Mona Alqahtani',
-    role:                'Project Manager',
-    field:               'Management',
-    candidate_level:     'Weak',
-    years_experience:    0,
-    education:           'BSc Information Systems',
-    certification:       'University project certificate',
-    core_skills:         'Project planning, Problem solving, PowerPoint, Basic communication',
-    tools:               'Asana, MS Project, Confluence',
-    experience_summary:  'Basic exposure through coursework and one short-term coordinator role; limited real ownership.',
-    expected_strengths:  'Foundational skills; shows potential',
-    expected_weaknesses: 'Limited professional experience; requires significant mentoring',
-    surprise_edge_case:  '',
-    expected_fit_score:  25,
-    expected_recommendation: 'Do not recommend',
-  },
-  {
-    candidate_id:               'CV-004',
-    fit_score:                  61,
-    knowledge_and_skills_score: 58,
-    uncertainty_and_risk_score: 55,
-    communication_score:        66,
-    final_recommendation:       'Conditional / requires follow-up interview',
-    strengths:                  'Transferable skills from prior background; unique perspective; strong communication',
-    weaknesses:                 'Limited technical depth in target role; may face credibility gap without PM track record',
-    candidate_name:      'Fatimah Alsaud',
-    role:                'Project Manager',
-    field:               'Management',
-    candidate_level:     'Unusual/Surprise',
-    years_experience:    11,
-    education:           'MBA',
-    certification:       'Bootcamp certificate',
-    core_skills:         'Problem solving, Project planning, Risk management, Excel, Confluence, Transferable skills',
-    tools:               'PowerPoint, Asana, Confluence',
-    experience_summary:  'Career switcher from education sector with strong communication skills; handled ambiguous situations but limited technical PM depth.',
-    expected_strengths:  'Transferable skills; strong communication; unique perspective',
-    expected_weaknesses: 'Limited technical PM depth; credibility gap requires probing',
-    surprise_edge_case:  'Career switcher from education with strong communication but limited technical depth',
-    expected_fit_score:  55,
-    expected_recommendation: 'Conditional / requires follow-up interview',
-  },
-  {
-    candidate_id:               'CV-005',
-    fit_score:                  95,
-    knowledge_and_skills_score: 94,
-    uncertainty_and_risk_score: 92,
-    communication_score:        96,
-    final_recommendation:       'Recommend',
-    strengths:                  'Exceptional clarity and structured thinking; measurable impact across all projects; outstanding stakeholder management',
-    weaknesses:                 'May be overqualified for junior PM roles; could benefit from broader industry exposure',
-    candidate_name:      'Mariam Alotaibi',
-    role:                'Project Manager',
-    field:               'Management',
-    candidate_level:     'Strong',
-    years_experience:    8,
-    education:           'BSc Management',
-    certification:       'Microsoft PL-300',
-    core_skills:         'Project planning, Risk management, Stakeholder communication, Agile/Scrum, Budget tracking, Jira, Confluence',
-    tools:               'Excel, Confluence, Asana',
-    experience_summary:  'Handled project risks and budgets across 3+ projects with consistent measurable impact; strong stakeholder response record.',
-    expected_strengths:  'Solid tool knowledge; clear practical examples; strong ownership',
-    expected_weaknesses: 'May need onboarding on company-specific processes',
-    surprise_edge_case:  '',
-    expected_fit_score:  95,
-    expected_recommendation: 'Recommend',
-  },
-]
+const API = 'http://localhost:8000'
+
 
 // ── helpers ───────────────────────────────────────────────────────────────────
 const LEVEL_STYLE = {
@@ -312,8 +184,19 @@ function CandidateDetail({ c, onClose }) {
 // ── page ──────────────────────────────────────────────────────────────────────
 export default function AdminPage() {
   const { t } = useTranslation()
-  const [selected, setSelected] = useState(MOCK_CANDIDATES[0])
-  const [panelOpen, setPanelOpen] = useState(false)
+  const [candidates, setCandidates] = useState([])
+  const [loading,    setLoading]    = useState(true)
+  const [fetchError, setFetchError] = useState('')
+  const [selected,   setSelected]   = useState(null)
+  const [panelOpen,  setPanelOpen]  = useState(false)
+
+  useEffect(() => {
+    fetch(`${API}/admin/candidates`)
+      .then(r => { if (!r.ok) throw new Error(`Server error: ${r.status}`); return r.json() })
+      .then(data => { setCandidates(data); if (data.length) setSelected(data[0]) })
+      .catch(err => setFetchError(err.message))
+      .finally(() => setLoading(false))
+  }, [])
 
   function select(c) { setSelected(c); setPanelOpen(true) }
 
@@ -331,7 +214,7 @@ export default function AdminPage() {
             <span className="text-[10px] font-medium px-2 py-0.5 rounded-full border border-white/10 text-zinc-500 uppercase tracking-wider">{t('admin.badge')}</span>
           </div>
           <div className="flex items-center gap-4">
-            <span className="text-xs text-zinc-600">{t('admin.applicantsCount', { count: MOCK_CANDIDATES.length })}</span>
+            {!loading && <span className="text-xs text-zinc-600">{t('admin.applicantsCount', { count: candidates.length })}</span>}
             <LangToggle />
           </div>
         </div>
@@ -352,7 +235,19 @@ export default function AdminPage() {
             <p className="text-xs text-zinc-600 mt-0.5">{t('admin.listSubheading')}</p>
           </div>
           <div className="flex-1 overflow-y-auto">
-            {MOCK_CANDIDATES.map(c => (
+            {loading && (
+              <div className="flex items-center justify-center gap-2 py-16 text-zinc-600 text-sm">
+                <span className="w-4 h-4 border-2 border-zinc-700 border-t-zinc-400 rounded-full animate-spin" aria-hidden="true" />
+                Loading…
+              </div>
+            )}
+            {fetchError && (
+              <p className="px-5 py-8 text-xs text-zinc-600 text-center">{fetchError}</p>
+            )}
+            {!loading && !fetchError && candidates.length === 0 && (
+              <p className="px-5 py-8 text-xs text-zinc-600 text-center">No candidates yet.</p>
+            )}
+            {candidates.map(c => (
               <CandidateRow
                 key={c.candidate_id}
                 c={c}
