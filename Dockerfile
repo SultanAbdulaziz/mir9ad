@@ -33,8 +33,8 @@ COPY DATA/ ./DATA/
 # Copy built frontend into a static dir FastAPI will serve
 COPY --from=frontend-build /app/frontend/dist ./static
 
-# Expose the API port
-EXPOSE 8000
+# Railway sets $PORT dynamically — expose it at runtime
+EXPOSE $PORT
 
 # Environment variables — override at runtime or via .env mount
 ENV GEMINI_API_KEY=""

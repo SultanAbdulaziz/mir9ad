@@ -34,11 +34,7 @@ app = FastAPI(
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "http://localhost:5173",   # Vite dev server
-        "http://127.0.0.1:5173",
-        "http://localhost:8000",   # production — same origin
-    ],
+    allow_origins=["*"],   # tighten to your Railway domain before going public
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
