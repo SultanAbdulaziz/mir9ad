@@ -49,5 +49,46 @@
       "weaknesses": "مجالات التحسين"
     }
   },
+  "admin": {
+    "badge": "المشرف",
+    "applicantsCount": "{{count}} مقدّم",
+    "listHeading": "المتقدمون",
+    "listSubheading": "اختر مقدماً لعرض ملفه الكامل",
+    "empty": "اختر مقدماً لعرض ملفه",
+    "yearsExp": "{{count}} سنة",
+    "yearsExp_plural": "{{count}} سنوات",
+    "sections": {
+      "recommendation":    "التوصية",
+      "scoreBreakdown":    "تفاصيل الدرجات",
+      "strengths":         "نقاط القوة",
+      "weaknesses":        "نقاط الضعف",
+      "cvProfile":         "ملف السيرة الذاتية",
+      "experienceSummary": "ملخص الخبرة",
+      "edgeCase":          "حالة غير متوقعة"
+    },
+    "fields": {
+      "fitScore":          "درجة الملاءمة",
+      "knowledgeSkills":   "المعرفة والمهارات",
+      "communication":     "التواصل",
+      "uncertaintyRisk":   "عدم اليقين والمخاطر",
+      "yearsExperience":   "سنوات الخبرة",
+      "education":         "التعليم",
+      "certification":     "الشهادات",
+      "coreSkills":        "المهارات الأساسية",
+      "tools":             "الأدوات"
+    },
+    "levels": {
+      "Strong":           "قوي",
+      "Average":          "متوسط",
+      "Weak":             "ضعيف",
+      "Unusual/Surprise": "غير تقليدي"
+    },
+    "recommendations": {
+      "Recommend":                                  "يُوصى به",
+      "Maybe / needs further assessment":           "ربما / يحتاج تقييماً إضافياً",
+      "Do not recommend":                           "لا يُوصى به",
+      "Conditional / requires follow-up interview": "مشروط / يحتاج مقابلة متابعة"
+    }
+  },
   "nav": { "langName": "العربية", "switchTo": "English" }
 }

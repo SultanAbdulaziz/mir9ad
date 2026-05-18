@@ -125,8 +125,8 @@ def compute_formula_score(years: float, num_skills: int, num_tools: int) -> floa
 
 
 # ── Interview structure ────────────────────────────────────────────────────────
-GENERAL_OPENING_IDS = ["GQ-001", "GQ-002"]   # Introduction, Motivation
-GENERAL_CLOSING_ID  = "GQ-020"               # Final Fit
+GENERAL_OPENING_IDS = []   # Introduction, Motivation
+GENERAL_CLOSING_ID  = None               # Final Fit
 
 # Map questionnaire categories to scoring dimensions
 _CATEGORY_TO_DIM: dict[str, str] = {
@@ -173,7 +173,7 @@ def _build_interview_plan(num_personalized: int) -> list[str]:
     return (
         [f"general:{q}" for q in GENERAL_OPENING_IDS]
         + ["personalized"] * num_personalized
-        + [f"general:{GENERAL_CLOSING_ID}"]
+        + ([f"general:{GENERAL_CLOSING_ID}"] if GENERAL_CLOSING_ID else [])
     )
 
 # ── State ──────────────────────────────────────────────────────────────────────

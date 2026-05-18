@@ -49,5 +49,46 @@
       "weaknesses": "Areas to Improve"
     }
   },
+  "admin": {
+    "badge": "Admin",
+    "applicantsCount": "{{count}} applicants",
+    "listHeading": "Applicants",
+    "listSubheading": "Select to view full profile",
+    "empty": "Select an applicant to view their profile",
+    "yearsExp": "{{count}} year",
+    "yearsExp_plural": "{{count}} years",
+    "sections": {
+      "recommendation":   "Recommendation",
+      "scoreBreakdown":   "Score Breakdown",
+      "strengths":        "Strengths",
+      "weaknesses":       "Weaknesses",
+      "cvProfile":        "CV Profile",
+      "experienceSummary":"Experience Summary",
+      "edgeCase":         "Surprise / Edge Case"
+    },
+    "fields": {
+      "fitScore":           "Fit Score",
+      "knowledgeSkills":    "Knowledge & Skills",
+      "communication":      "Communication",
+      "uncertaintyRisk":    "Uncertainty & Risk",
+      "yearsExperience":    "Years Experience",
+      "education":          "Education",
+      "certification":      "Certification",
+      "coreSkills":         "Core Skills",
+      "tools":              "Tools"
+    },
+    "levels": {
+      "Strong":           "Strong",
+      "Average":          "Average",
+      "Weak":             "Weak",
+      "Unusual/Surprise": "Unusual / Surprise"
+    },
+    "recommendations": {
+      "Recommend":                                  "Recommend",
+      "Maybe / needs further assessment":           "Maybe / needs further assessment",
+      "Do not recommend":                           "Do not recommend",
+      "Conditional / requires follow-up interview": "Conditional / follow-up needed"
+    }
+  },
   "nav": { "langName": "English", "switchTo": "العربية" }
 }
