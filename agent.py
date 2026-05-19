@@ -394,7 +394,7 @@ def score_delivery_from_audio(audio_bytes: bytes, mime_type: str = "audio/webm")
         response = client.models.generate_content(
             model=_GEMINI_FLASH,
             contents=[
-                gtypes.Part.from_bytes(data=audio_bytes, mime_type=mime_type),
+                gtypes.Part.from_bytes(data=audio_bytes, mime_type=mime_type.split(";")[0].strip()),
                 _DELIVERY_PROMPT,
             ],
             config=gtypes.GenerateContentConfig(
@@ -448,7 +448,7 @@ def score_body_language_from_video(video_bytes: bytes, mime_type: str = "video/w
         response = client.models.generate_content(
             model=_GEMINI_FLASH,
             contents=[
-                gtypes.Part.from_bytes(data=video_bytes, mime_type=mime_type),
+                gtypes.Part.from_bytes(data=video_bytes, mime_type=mime_type.split(";")[0].strip()),
                 _BODY_LANGUAGE_PROMPT,
             ],
             config=gtypes.GenerateContentConfig(
@@ -836,7 +836,8 @@ def score_answer_node(state: InterviewState) -> dict:
         import base64
         try:
             audio_bytes = base64.b64decode(audio_state["b64"])
-            delivery    = score_delivery_from_audio(audio_bytes, audio_state.get("mime", "audio/webm"))
+            clean_audio_mime = audio_state.get("mime", "audio/webm").split(";")[0].strip()
+            delivery    = score_delivery_from_audio(audio_bytes, clean_audio_mime)
         except Exception as exc:
             print(f"[audio decode failed: {exc}]", file=sys.stderr)
 
@@ -847,7 +848,8 @@ def score_answer_node(state: InterviewState) -> dict:
         import base64
         try:
             video_bytes   = base64.b64decode(video_state["b64"])
-            body_language = score_body_language_from_video(video_bytes, video_state.get("mime", "video/webm"))
+            clean_video_mime = video_state.get("mime", "video/webm").split(";")[0].strip()
+            body_language = score_body_language_from_video(video_bytes, clean_video_mime)
         except Exception as exc:
             print(f"[video decode failed: {exc}]", file=sys.stderr)
 
