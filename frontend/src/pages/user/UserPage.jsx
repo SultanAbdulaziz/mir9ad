@@ -125,18 +125,25 @@ export default function UserPage() {
   const [cvError,     setCvError]     = useState('')
   const [answering,   setAnswering]   = useState(false)
   const [answerError, setAnswerError] = useState('')
-  const [barVisible, setBarVisible] = useState(false)
-  const barFillRef  = useRef(null)   // direct DOM ref — no React state for width
-  const barPctRef   = useRef(0)
-  const barTimer    = useRef(null)
+  const [barVisible,    setBarVisible]    = useState(false)
+  const [ansBarVisible, setAnsBarVisible] = useState(false)
+  const barFillRef    = useRef(null)
+  const ansBarFillRef = useRef(null)
+  const barPctRef     = useRef(0)
+  const ansBarPctRef  = useRef(0)
+  const barTimer      = useRef(null)
+  const ansBarTimer   = useRef(null)
 
   function setBarWidth(pct) {
     barPctRef.current = pct
-    if (barFillRef.current)
-      barFillRef.current.style.width = `${pct}%`
+    if (barFillRef.current) barFillRef.current.style.width = `${pct}%`
+  }
+  function setAnsBarWidth(pct) {
+    ansBarPctRef.current = pct
+    if (ansBarFillRef.current) ansBarFillRef.current.style.width = `${pct}%`
   }
 
-  // Fake progress bar — imperative DOM updates to avoid re-render flicker
+  // CV upload progress bar
   useEffect(() => {
     if (cvLoading) {
       setBarWidth(0)
@@ -156,6 +163,27 @@ export default function UserPage() {
     }
     return () => clearInterval(barTimer.current)
   }, [cvLoading])
+
+  // Answer submission progress bar
+  useEffect(() => {
+    if (answering) {
+      setAnsBarWidth(0)
+      setAnsBarVisible(true)
+      ansBarTimer.current = setInterval(() => {
+        const p = ansBarPctRef.current
+        const next = p < 60 ? p + 5 : p < 80 ? p + 1.5 : p < 92 ? p + 0.3 : p
+        setAnsBarWidth(next)
+      }, 200)
+    } else {
+      clearInterval(ansBarTimer.current)
+      if (ansBarFillRef.current) {
+        ansBarFillRef.current.style.transition = 'width 400ms ease-out'
+        setAnsBarWidth(100)
+      }
+      setTimeout(() => { setAnsBarVisible(false); setAnsBarWidth(0) }, 600)
+    }
+    return () => clearInterval(ansBarTimer.current)
+  }, [answering])
 
   const stepKey = STEP_KEYS[step]
 
@@ -233,6 +261,20 @@ export default function UserPage() {
           <LangToggle />
         </div>
       </header>
+
+      {/* CV upload progress bar */}
+      {barVisible && (
+        <div className="fixed top-0 inset-x-0 h-0.5 z-[60] bg-white/10 pointer-events-none">
+          <div ref={barFillRef} className="h-full bg-white" style={{ width: '0%', willChange: 'width' }} />
+        </div>
+      )}
+
+      {/* Answer submission progress bar */}
+      {ansBarVisible && (
+        <div className="fixed top-0 inset-x-0 h-0.5 z-[60] bg-white/10 pointer-events-none">
+          <div ref={ansBarFillRef} className="h-full bg-white" style={{ width: '0%', willChange: 'width' }} />
+        </div>
+      )}
 
 
       <main className="flex-1 flex flex-col items-center px-4 pt-32 pb-16 gap-12 relative z-10">
