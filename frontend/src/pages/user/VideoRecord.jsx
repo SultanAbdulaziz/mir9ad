@@ -55,6 +55,7 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
   const [recElapsed,   setRecElapsed]   = useState(0)
   const [audioBlob,    setAudioBlob]    = useState(null)
   const [videoBlob,    setVideoBlob]    = useState(null)
+  const [previewUrl,   setPreviewUrl]   = useState('')
   const [error,        setError]        = useState('')
 
   const thinkRemaining = THINK_SECONDS  - thinkElapsed
@@ -121,10 +122,7 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
       const vBlob = new Blob(videoChunksRef.current, { type: VIDEO_MIME || 'video/webm' })
       setAudioBlob(aBlob)
       setVideoBlob(vBlob)
-      if (previewRef.current) {
-        previewRef.current.src = URL.createObjectURL(vBlob)
-        previewRef.current.load()
-      }
+      setPreviewUrl(URL.createObjectURL(vBlob))
       setPhase('preview')
     }
     videoRec.onstop = () => { vDone = true; onBothDone() }
@@ -156,11 +154,12 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
     audioRecorderRef.current?.stop()
   }
 
-  // ── submit — audio transcribed by Gemini; video scored for body language ─
+  // ── submit — video only on first question (body language); rest audio only ─
   async function handleSubmit() {
     if (!audioBlob) return
+    const isFirstQuestion = (progress?.answered ?? 0) === 0
     const audio_b64 = await blobToBase64(audioBlob)
-    const video_b64 = videoBlob ? await blobToBase64(videoBlob) : null
+    const video_b64 = isFirstQuestion && videoBlob ? await blobToBase64(videoBlob) : null
     await onSubmit?.(audio_b64, AUDIO_MIME, video_b64, VIDEO_MIME || 'video/webm')
   }
 
@@ -182,9 +181,21 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
     setAudioBlob(null)
     setVideoBlob(null)
     setError('')
-    if (previewRef.current) previewRef.current.src = ''
-    setPhase(streamRef.current ? 'thinking' : 'idle')
-  }, [question?.question_id])
+    setPreviewUrl('')
+
+    const streamAlive = streamRef.current?.active &&
+      streamRef.current.getTracks().some(t => t.readyState === 'live')
+
+    if (streamAlive) {
+      // Stream still live — go straight to thinking, no permission needed
+      setPhase('thinking')
+    } else {
+      // Tracks ended (browser suspended them after recording) — restart silently
+      // Browser uses cached permission, no dialog appears
+      streamRef.current = null
+      startCamera()
+    }
+  }, [question?.question_id]) // eslint-disable-line react-hooks/exhaustive-deps
 
   return (
     <div className="w-full max-w-xl flex flex-col gap-6 animate-fade-in-up">
@@ -243,7 +254,7 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
             phase === 'thinking' || phase === 'recording' ? 'opacity-100' : 'opacity-0 pointer-events-none'].join(' ')} />
 
         {/* Playback */}
-        <video ref={previewRef} controls playsInline aria-label={t('user.record.preview')}
+        <video ref={previewRef} src={previewUrl} controls playsInline aria-label={t('user.record.preview')}
           className={['absolute inset-0 w-full h-full object-cover transition-opacity duration-300',
             phase === 'preview' ? 'opacity-100' : 'opacity-0 pointer-events-none'].join(' ')} />
 

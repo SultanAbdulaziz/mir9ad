@@ -315,7 +315,7 @@ export default function AdminPage() {
       .then(data => {
         setCandidates(data)
         if (data.length) setSelected(data[0])
-        setLoading(false)   // batched with above — single render
+        setLoading(false)
       })
       .catch(err => {
         setFetchError(err.message)
@@ -328,7 +328,8 @@ export default function AdminPage() {
   return (
     <div className="min-h-dvh bg-black text-white flex flex-col overflow-hidden">
       <div className="fixed z-0 pointer-events-none opacity-30"
-        style={{ inset: '-20%', transform: 'rotate(-18deg) scaleX(1.4)', transformOrigin: 'center center' }}>
+        style={{ inset: '-20%', transform: 'rotate(-18deg) scaleX(1.4)', transformOrigin: 'center center',
+                 willChange: 'transform', isolation: 'isolate', contain: 'strict' }}>
         <Threads amplitude={1.2} distance={0.4} enableMouseInteraction={false} color={[1, 1, 1]} />
       </div>
 
@@ -361,7 +362,7 @@ export default function AdminPage() {
           </div>
           <div
             className="flex-1 overflow-y-auto transition-opacity duration-300"
-            style={{ opacity: loading ? 0 : 1 }}
+            style={{}}
           >
             {loading && (
               <div className="flex items-center justify-center gap-2 py-16 text-zinc-600 text-sm">
@@ -388,7 +389,7 @@ export default function AdminPage() {
 
         {/* Right: detail panel */}
         <main className={[
-          'flex-1 overflow-hidden bg-black/40',
+          'flex-1 overflow-hidden bg-black/40 transition-opacity duration-300',
           panelOpen ? 'flex flex-col' : 'hidden lg:flex lg:flex-col',
         ].join(' ')}>
           {selected ? (

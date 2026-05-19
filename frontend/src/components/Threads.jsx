@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, memo } from 'react';
 import { Renderer, Program, Mesh, Triangle, Color } from 'ogl';
 import './Threads.css';
 
@@ -211,4 +211,4 @@ const Threads = ({ color = [1, 1, 1], amplitude = 1, distance = 0, enableMouseIn
   return <div ref={containerRef} className="threads-container" {...rest} />;
 };
 
-export default Threads;
+export default memo(Threads);

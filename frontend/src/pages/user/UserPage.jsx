@@ -222,7 +222,8 @@ export default function UserPage() {
     <div className="min-h-dvh bg-black text-white flex flex-col overflow-x-hidden">
       {/* Threads background */}
       <div className="fixed z-0 pointer-events-none opacity-30"
-        style={{ inset: '-20%', transform: 'rotate(-18deg) scaleX(1.4)', transformOrigin: 'center center' }}>
+        style={{ inset: '-20%', transform: 'rotate(-18deg) scaleX(1.4)', transformOrigin: 'center center',
+                 willChange: 'transform', isolation: 'isolate', contain: 'strict' }}>
         <Threads amplitude={1.4} distance={0.5} enableMouseInteraction={false} color={[1, 1, 1]} />
       </div>
 

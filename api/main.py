@@ -102,13 +102,26 @@ async def start_interview_from_pdf(
 
         interview_id = cid or str(uuid.uuid4())
 
+    # ── TXT path ──────────────────────────────────────────────────────────────
+    elif filename.endswith(".txt"):
+        try:
+            resume_text = content.decode("utf-8").strip()
+        except UnicodeDecodeError:
+            resume_text = content.decode("latin-1").strip()
+        if not resume_text:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Text file is empty.",
+            )
+        interview_id = str(uuid.uuid4())
+
     # ── PDF path ──────────────────────────────────────────────────────────────
     else:
         if (resume.content_type or "").lower() not in {"application/pdf", "application/octet-stream"}:
             if not filename.endswith(".pdf"):
                 raise HTTPException(
                     status_code=status.HTTP_400_BAD_REQUEST,
-                    detail="Only PDF or CSV files are accepted.",
+                    detail="Only PDF, CSV, or TXT files are accepted.",
                 )
 
         resume_text = agent.parse_pdf_resume(content)

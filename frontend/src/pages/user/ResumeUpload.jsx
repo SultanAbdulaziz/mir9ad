@@ -2,8 +2,8 @@ import { useRef, useCallback, useState } from 'react'
 import { useTranslation } from 'react-i18next'
 import { UploadCloud, FileText, X, AlertCircle, CheckCircle2, Loader2 } from 'lucide-react'
 
-const ACCEPTED_TYPES = ['application/pdf', 'text/csv', 'application/csv', 'application/vnd.ms-excel']
-const ACCEPTED_EXTS  = ['.pdf', '.csv']
+const ACCEPTED_TYPES = ['application/pdf', 'text/csv', 'application/csv', 'application/vnd.ms-excel', 'text/plain']
+const ACCEPTED_EXTS  = ['.pdf', '.csv', '.txt']
 const MAX_BYTES      = 5 * 1024 * 1024
 
 function formatBytes(b) {
