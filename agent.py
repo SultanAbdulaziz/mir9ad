@@ -965,7 +965,7 @@ def finalize_node(state: InterviewState) -> dict:
 
     # ── Fixed-weight blend: 75% LLM interview + 25% formula baseline ────────
     if formula_score is not None:
-        overall = round(0.75 * llm_weighted + 0.25 * formula_score, 1)
+        overall = round(0.3 * llm_weighted + 0.7 * formula_score, 1)
     else:
         overall = llm_weighted
     overall = max(0.0, min(100.0, overall))
