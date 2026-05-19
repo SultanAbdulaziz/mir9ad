@@ -772,10 +772,12 @@ def ask_question_node(state: InterviewState) -> dict:
             if client is not None:
                 try:
                     audio_bytes = base64.b64decode(audio_b64)
+                    # Strip codec spec — Gemini only accepts base MIME (e.g. audio/webm not audio/webm;codecs=opus)
+                    clean_mime  = audio_mime.split(";")[0].strip()
                     resp = client.models.generate_content(
                         model=_GEMINI_FLASH,
                         contents=[
-                            gtypes.Part.from_bytes(data=audio_bytes, mime_type=audio_mime),
+                            gtypes.Part.from_bytes(data=audio_bytes, mime_type=clean_mime),
                             "Transcribe this audio exactly as spoken. Return only the transcript text, nothing else.",
                         ],
                     )
