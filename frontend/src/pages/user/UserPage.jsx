@@ -262,19 +262,6 @@ export default function UserPage() {
         </div>
       </header>
 
-      {/* CV upload progress bar */}
-      {barVisible && (
-        <div className="fixed top-0 inset-x-0 h-0.5 z-[60] bg-white/10 pointer-events-none">
-          <div ref={barFillRef} className="h-full bg-white" style={{ width: '0%', willChange: 'width' }} />
-        </div>
-      )}
-
-      {/* Answer submission progress bar */}
-      {ansBarVisible && (
-        <div className="fixed top-0 inset-x-0 h-0.5 z-[60] bg-white/10 pointer-events-none">
-          <div ref={ansBarFillRef} className="h-full bg-white" style={{ width: '0%', willChange: 'width' }} />
-        </div>
-      )}
 
 
       <main className="flex-1 flex flex-col items-center px-4 pt-32 pb-16 gap-12 relative z-10">
@@ -328,6 +315,15 @@ export default function UserPage() {
               onSubmit={handleAnswer}
               disabled={answering}
             />
+            {ansBarVisible && (
+              <div className="w-full max-w-xl h-0.5 bg-white/10 rounded-full overflow-hidden">
+                <div
+                  ref={ansBarFillRef}
+                  className="h-full bg-white rounded-full"
+                  style={{ width: '0%', willChange: 'width' }}
+                />
+              </div>
+            )}
             {answerError && (
               <div role="alert" aria-live="polite" className="w-full max-w-xl flex items-start gap-3 px-4 py-3 rounded-xl border border-white/10 bg-zinc-900/90 text-sm text-zinc-400">
                 <span className="shrink-0 mt-0.5 text-zinc-500">⚠</span>{answerError}
