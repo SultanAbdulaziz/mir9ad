@@ -891,18 +891,31 @@ def finalize_node(state: InterviewState) -> dict:
     cv_scores = state.get("cv_dimension_scores") or {}
     qa_pairs  = state.get("questions_asked", [])
 
-    # Average interview scores per dimension
-    iv_buckets: dict[str, list] = {}
+    # ── Per-dimension interview averages (length-weighted) ───────────────────
+    # Longer answers count more, clipped at 400 chars — beyond that more
+    # length doesn't mean more signal.
+    iv_buckets: dict[str, list[tuple[float, float]]] = {}
     for qa in qa_pairs:
-        iv_buckets.setdefault(qa["dimension"], []).append(qa["answer_score"])
-    iv_scores = {k: sum(v) / len(v) for k, v in iv_buckets.items()}
+        w = min(len(qa["answer"]) / 400, 1.0)
+        iv_buckets.setdefault(qa["dimension"], []).append((qa["answer_score"], w))
+    iv_scores: dict[str, float] = {}
+    iv_counts: dict[str, int]   = {}
+    for dim, pairs in iv_buckets.items():
+        total_w = sum(w for _, w in pairs) or 1e-6
+        iv_scores[dim] = sum(s * w for s, w in pairs) / total_w
+        iv_counts[dim] = len(pairs)
 
-    # Merge: CV 40% + interview 60% where available
+    # ── Shrinkage merge: interview weight grows with sample size ─────────────
+    # n=1 → 0.33, n=2 → 0.50, n=3 → 0.60, n=5 → 0.71. Prior strength = 2.
     merged: dict[str, float] = {}
     for dim in WEIGHTS:
         cv_val = float(cv_scores.get(dim, 5.0))
-        iv_val = iv_scores.get(dim)
-        merged[dim] = round(cv_val * 0.4 + iv_val * 0.6, 2) if iv_val is not None else round(cv_val, 2)
+        n      = iv_counts.get(dim, 0)
+        if n == 0:
+            merged[dim] = round(cv_val, 2)
+        else:
+            iv_w = n / (n + 2)
+            merged[dim] = round(cv_val * (1 - iv_w) + iv_scores[dim] * iv_w, 2)
 
     llm_weighted  = _weighted_score(merged)
     formula_score = state.get("formula_score")
@@ -914,9 +927,21 @@ def finalize_node(state: InterviewState) -> dict:
     if not_serious:
         llm_weighted = 0.0
 
-    # Blend formula (rubric-grounded baseline) with LLM (behavioral) — 50/50
+    # ── Evidence-weighted blend of formula vs interview ──────────────────────
+    # α scales with how much interview evidence exists: substantive-answer
+    # ratio, breadth across dimensions, total volume. Bounded [0.30, 0.65] —
+    # formula keeps a sanity floor, interview keeps a baseline weight.
     if formula_score is not None:
-        overall = round(0.6 * formula_score + 0.4 * llm_weighted, 1)
+        n_total       = len(qa_pairs)
+        n_substantive = sum(1 for qa in qa_pairs if len(qa["answer"]) >= 120)
+        dims_covered  = len({qa["dimension"] for qa in qa_pairs})
+
+        answer_factor = n_substantive / max(n_total, 1)
+        breadth       = min(dims_covered / 6, 1.0)
+        volume        = min(n_total / 6, 1.0)
+
+        alpha   = 0.30 + 0.35 * (0.4 * answer_factor + 0.3 * breadth + 0.3 * volume)
+        overall = round(alpha * llm_weighted + (1 - alpha) * formula_score, 1)
     else:
         overall = llm_weighted
     overall = max(0.0, min(100.0, overall))
