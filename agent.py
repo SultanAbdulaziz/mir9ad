@@ -383,33 +383,45 @@ def score_delivery_from_audio(audio_bytes: bytes, mime_type: str = "audio/webm")
     """
     Score delivery quality from a candidate's audio response.
     Returns DeliveryScore dict, or None if Gemini is unavailable or call fails.
+    Retries up to 3 times on transient errors (429 / overload).
     """
+    import time
+
     client = _get_gemini()
     if client is None:
         return None
 
     from google.genai import types as gtypes
 
-    try:
-        response = client.models.generate_content(
-            model=_GEMINI_FLASH,
-            contents=[
-                gtypes.Part.from_bytes(data=audio_bytes, mime_type=mime_type.split(";")[0].strip()),
-                _DELIVERY_PROMPT,
-            ],
-            config=gtypes.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=DeliveryScore,
-                temperature=0.0,
-            ),
-        )
-        raw = response.text or "{}"
-        data = json.loads(raw)
-        # Validate through Pydantic to clamp and coerce
-        return DeliveryScore(**data).model_dump()
-    except Exception as exc:
-        print(f"[delivery scoring failed: {exc}]", file=sys.stderr)
-        return None
+    clean_mime = mime_type.split(";")[0].strip()
+
+    for attempt in range(3):
+        try:
+            response = client.models.generate_content(
+                model=_GEMINI_FLASH,
+                contents=[
+                    gtypes.Part.from_bytes(data=audio_bytes, mime_type=clean_mime),
+                    _DELIVERY_PROMPT,
+                ],
+                config=gtypes.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=DeliveryScore,
+                    temperature=0.0,
+                ),
+            )
+            raw = response.text or "{}"
+            data = json.loads(raw)
+            return DeliveryScore(**data).model_dump()
+        except Exception as exc:
+            msg = str(exc).lower()
+            is_retryable = any(x in msg for x in ("429", "503", "quota", "overloaded", "resource_exhausted"))
+            if is_retryable and attempt < 2:
+                wait = 2.0 * (2 ** attempt)
+                print(f"[delivery] retry {attempt+1}/3 in {wait:.1f}s: {exc}", file=sys.stderr)
+                time.sleep(wait)
+            else:
+                print(f"[delivery scoring failed]: {exc}", file=sys.stderr)
+                return None
 
 
 # ── Body language scoring prompt (video-only path) ────────────────────────────
@@ -438,30 +450,42 @@ def score_body_language_from_video(video_bytes: bytes, mime_type: str = "video/w
     Score body language from a candidate's 30s video response.
     Returns BodyLanguageScore dict, or None if Gemini is unavailable or call fails.
     """
+    import time
+
     client = _get_gemini()
     if client is None:
         return None
 
     from google.genai import types as gtypes
 
-    try:
-        response = client.models.generate_content(
-            model=_GEMINI_FLASH,
-            contents=[
-                gtypes.Part.from_bytes(data=video_bytes, mime_type=mime_type.split(";")[0].strip()),
-                _BODY_LANGUAGE_PROMPT,
-            ],
-            config=gtypes.GenerateContentConfig(
-                response_mime_type="application/json",
-                response_schema=BodyLanguageScore,
-                temperature=0.0,
-            ),
-        )
-        raw = response.text or "{}"
-        return BodyLanguageScore(**json.loads(raw)).model_dump()
-    except Exception as exc:
-        print(f"[body language scoring failed: {exc}]", file=sys.stderr)
-        return None
+    clean_mime = mime_type.split(";")[0].strip()
+
+    for attempt in range(3):
+        try:
+            response = client.models.generate_content(
+                model=_GEMINI_FLASH,
+                contents=[
+                    gtypes.Part.from_bytes(data=video_bytes, mime_type=clean_mime),
+                    _BODY_LANGUAGE_PROMPT,
+                ],
+                config=gtypes.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=BodyLanguageScore,
+                    temperature=0.0,
+                ),
+            )
+            raw = response.text or "{}"
+            return BodyLanguageScore(**json.loads(raw)).model_dump()
+        except Exception as exc:
+            msg = str(exc).lower()
+            is_retryable = any(x in msg for x in ("429", "503", "quota", "overloaded", "resource_exhausted"))
+            if is_retryable and attempt < 2:
+                wait = 2.0 * (2 ** attempt)
+                print(f"[body language] retry {attempt+1}/3 in {wait:.1f}s: {exc}", file=sys.stderr)
+                time.sleep(wait)
+            else:
+                print(f"[body language scoring failed]: {exc}", file=sys.stderr)
+                return None
 
 
 # ── Prompts ────────────────────────────────────────────────────────────────────
@@ -939,21 +963,9 @@ def finalize_node(state: InterviewState) -> dict:
     if not_serious:
         llm_weighted = 0.0
 
-    # ── Evidence-weighted blend of formula vs interview ──────────────────────
-    # α scales with how much interview evidence exists: substantive-answer
-    # ratio, breadth across dimensions, total volume. Bounded [0.30, 0.65] —
-    # formula keeps a sanity floor, interview keeps a baseline weight.
+    # ── Fixed-weight blend: 75% LLM interview + 25% formula baseline ────────
     if formula_score is not None:
-        n_total       = len(qa_pairs)
-        n_substantive = sum(1 for qa in qa_pairs if len(qa["answer"]) >= 120)
-        dims_covered  = len({qa["dimension"] for qa in qa_pairs})
-
-        answer_factor = n_substantive / max(n_total, 1)
-        breadth       = min(dims_covered / 6, 1.0)
-        volume        = min(n_total / 6, 1.0)
-
-        alpha   = 0.30 + 0.35 * (0.4 * answer_factor + 0.3 * breadth + 0.3 * volume)
-        overall = round(alpha * llm_weighted + (1 - alpha) * formula_score, 1)
+        overall = round(0.75 * llm_weighted + 0.25 * formula_score, 1)
     else:
         overall = llm_weighted
     overall = max(0.0, min(100.0, overall))
