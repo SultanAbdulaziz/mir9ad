@@ -764,26 +764,36 @@ def ask_question_node(state: InterviewState) -> dict:
         video_state = {"b64": video_b64, "mime": video_mime} if video_b64 else None
         answer_text = ""
 
-        # Transcribe audio → text via Gemini
+        # Transcribe audio → text via Gemini (with retry on transient errors)
         if audio_b64:
-            import base64
+            import base64, time
             from google.genai import types as gtypes
             client = _get_gemini()
             if client is not None:
-                try:
-                    audio_bytes = base64.b64decode(audio_b64)
-                    # Strip codec spec — Gemini only accepts base MIME (e.g. audio/webm not audio/webm;codecs=opus)
-                    clean_mime  = audio_mime.split(";")[0].strip()
-                    resp = client.models.generate_content(
-                        model=_GEMINI_FLASH,
-                        contents=[
-                            gtypes.Part.from_bytes(data=audio_bytes, mime_type=clean_mime),
-                            "Transcribe this audio exactly as spoken. Return only the transcript text, nothing else.",
-                        ],
-                    )
-                    answer_text = (resp.text or "").strip()
-                except Exception as exc:
-                    print(f"[transcription failed: {exc}]", file=sys.stderr)
+                audio_bytes = base64.b64decode(audio_b64)
+                clean_mime  = audio_mime.split(";")[0].strip()
+                for attempt in range(4):
+                    try:
+                        resp = client.models.generate_content(
+                            model=_GEMINI_FLASH,
+                            contents=[
+                                gtypes.Part.from_bytes(data=audio_bytes, mime_type=clean_mime),
+                                "Transcribe this audio exactly as spoken. Return only the transcript text, nothing else.",
+                            ],
+                        )
+                        answer_text = (resp.text or "").strip()
+                        if answer_text:
+                            break  # success
+                    except Exception as exc:
+                        msg = str(exc).lower()
+                        is_retryable = any(x in msg for x in ("429", "503", "quota", "overloaded", "resource_exhausted", "readerror"))
+                        if is_retryable and attempt < 3:
+                            wait = 2.0 * (2 ** attempt)
+                            print(f"[transcription] retry {attempt+1}/4 in {wait:.1f}s: {exc}", file=sys.stderr)
+                            time.sleep(wait)
+                        else:
+                            print(f"[transcription failed]: {exc}", file=sys.stderr)
+                            break
     else:
         answer_text  = str(payload)
         audio_state  = None

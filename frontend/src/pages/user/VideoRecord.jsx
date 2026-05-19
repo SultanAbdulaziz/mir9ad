@@ -110,8 +110,9 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
     const videoRec = new MediaRecorder(stream, { mimeType: VIDEO_MIME, videoBitsPerSecond: 200_000 })
     videoRec.ondataavailable = (e) => { if (e.data.size > 0) videoChunksRef.current.push(e.data) }
 
-    // Audio-only recorder — sent to backend as per CLAUDE.md
-    const audioStream = new MediaStream(stream.getAudioTracks())
+    // Clone audio tracks so stopping this recorder doesn't affect the original stream
+    const audioStream = stream.clone()
+    audioStream.getVideoTracks().forEach(t => { t.stop(); audioStream.removeTrack(t) })
     const audioRec    = new MediaRecorder(audioStream, { mimeType: AUDIO_MIME })
     audioRec.ondataavailable = (e) => { if (e.data.size > 0) audioChunksRef.current.push(e.data) }
 
