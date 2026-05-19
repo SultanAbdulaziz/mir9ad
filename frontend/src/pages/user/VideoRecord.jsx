@@ -106,8 +106,8 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
     videoChunksRef.current = []
     audioChunksRef.current = []
 
-    // Video recorder — for preview only
-    const videoRec = new MediaRecorder(stream, { mimeType: VIDEO_MIME })
+    // Video recorder — low bitrate so base64 payload stays small (~2MB for 60s)
+    const videoRec = new MediaRecorder(stream, { mimeType: VIDEO_MIME, videoBitsPerSecond: 200_000 })
     videoRec.ondataavailable = (e) => { if (e.data.size > 0) videoChunksRef.current.push(e.data) }
 
     // Audio-only recorder — sent to backend as per CLAUDE.md
@@ -154,7 +154,7 @@ export default function VideoRecord({ question, progress, onSubmit, disabled = f
     audioRecorderRef.current?.stop()
   }
 
-  // ── submit — video only on first question (body language); rest audio only ─
+  // ── submit — audio always; video only for Q1 (body language) at low bitrate ─
   async function handleSubmit() {
     if (!audioBlob) return
     const isFirstQuestion = (progress?.answered ?? 0) === 0
